@@ -55,4 +55,7 @@ dependencies {
 
     // NAVIGATION
     implementation(libs.androidx.navigation.compose)
+
+    // COROUTINES
+    testImplementation(libs.kotlinx.coroutines.test)
 }
