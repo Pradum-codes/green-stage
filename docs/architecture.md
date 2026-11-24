@@ -79,22 +79,23 @@ Account type is stored in `users/{userId}`:
 accountType: "student" | "admin"
 ```
 
-An admin owns the community created during registration:
+An email address can belong to only one Firebase Authentication account in the same Firebase project. The account type is selected during registration and remains immutable.
+
+An admin owns the community created during registration, with the community document ID equal to the admin's UID:
 
 ```text
 users/{adminUid}
     |
-    | communities.createdBy
+    | communityId == adminUid (and communities.createdBy == adminUid)
     v
-communities/{communityId}
+communities/{adminUid}
     |
-    | events.communityId
+    | events.communityId == adminUid
     v
 events/{eventId}
 ```
 
-Event authorization checks the authenticated admin against the community's
-`createdBy`; it never trusts only the event's `createdBy` field.
+The community document ID is the admin's Firebase Authentication UID (`communities/{adminUid}`), enabling direct lookup using the authenticated UID. `events.communityId` equals the owning admin's UID. Event authorization checks the authenticated admin against the community document; it never trusts only the event's `createdBy` audit field.
 
 ## 5. Registration and Startup Flow
 
@@ -111,25 +112,25 @@ Signed out                  Signed in
 Login/Register               Load users/{uid}
                                   |
                                   v
-                         Validate accountType
+                         Validate accountType & Community
                          |                |
                          v                v
-                    Student           Admin
+                    Student           Admin (requires communities/{uid})
                  Student graph     Admin graph
 ```
 
 Student registration creates Auth credentials and a `users/{uid}` profile with
-`accountType = "student"`, then opens Student Experience.
+`accountType = "student"`, then opens Student Experience. No community document is created.
 
-Community Admin registration creates Auth credentials, obtains the authenticated
-UID, and writes the admin profile plus the community with `createdBy = uid` in
+Community Admin registration (public self-registration) creates Auth credentials, obtains the authenticated
+UID, and writes the admin profile (`users/{uid}`) plus the community (`communities/{uid}`) with `createdBy = uid` in
 one Firestore batch or transaction after Auth succeeds. It opens Admin
 Experience only after both documents are valid. AuthRepository owns this
-orchestration; CommunityRepository only retrieves and updates the owned
-community.
+orchestration; CommunityRepository retrieves and updates the owned
+community directly using `communities/{authenticatedUid}`.
 
 If Auth succeeds but Firestore writes fail, show a recovery state, retry
-missing writes safely, and do not route into an unauthorized experience.
+missing writes safely, and do not route an incomplete admin account into Admin Experience. On startup, admin profiles must also have a valid `communities/{uid}` document before entering Admin Experience.
 
 ## 6. Navigation Experiences
 
@@ -160,7 +161,7 @@ Admin Dashboard
 Create Event
     |
     +--> events/{eventId}
-            communityId = admin's community
+            communityId = admin's UID (community ID)
             createdBy = authenticated admin UID
 
 Student Explore Events

@@ -8,19 +8,19 @@ Navigation Compose graphs:
 1. **Student Experience**
 2. **Admin Experience**
 
-The authenticated user's Firestore profile determines the experience:
+The authenticated user's Firestore profile and community document determine the experience:
 
 ```text
 users/{userId}.accountType
         |
         +--> student --> Student Navigation
         |
-        +--> admin   --> Admin Navigation
+        +--> admin   --> Requires valid communities/{uid} --> Admin Navigation
 ```
 
 DataStore may store a convenience preference, but startup always validates
-`accountType` from Firestore. A missing, invalid, or unsupported profile opens
-a safe recovery/error state instead of a protected graph.
+`accountType` and required community document from Firestore. A missing, invalid, or unsupported profile opens
+a safe recovery/error state instead of a protected graph. Account type is immutable; role upgrades, downgrades, or transfers are not supported.
 
 ## 2. Authentication Screens
 
@@ -32,13 +32,13 @@ route by the trusted `accountType`:
 | Scenario | Destination |
 |---|---|
 | Existing student logs in | Student Experience |
-| Existing admin logs in | Admin Experience |
-| Missing or invalid profile | Recovery/error state |
+| Existing admin logs in (with valid community) | Admin Experience |
+| Missing or invalid profile / missing community | Recovery/error state |
 | User logs out | Authentication screens |
 
 ### Registration
 
-Registration offers two paths:
+Registration offers two public self-registration paths (an email address can belong to only one Auth account in the project):
 
 ```text
 Register
@@ -51,12 +51,12 @@ Register
   +--> Community Admin
           +--> Firebase Auth account
           +--> users/{uid}: accountType = admin
-          +--> communities/{communityId}: createdBy = uid
+          +--> communities/{uid}: createdBy = uid
           +--> Admin Experience
 ```
 
-Admin registration creates the profile and community in one Firestore batch or
-transaction after Auth succeeds. If Firestore
+Admin registration creates the profile (`users/{uid}`) and community (`communities/{uid}`) in one Firestore batch or
+transaction after Auth succeeds (where community document ID equals admin UID). If Firestore
 writes fail after Auth succeeds, show recovery and do not open Admin
 Experience until the required documents are valid.
 
@@ -130,21 +130,21 @@ Requests, or Membership Management screens.
 Show the owned community, active and upcoming events, basic event counts, and
 registration counts where available. Selecting an event opens a nested details
 or management screen. The dashboard query must constrain `communityId` to the
-admin's owned community.
+admin's owned community (`communityId == adminUid`).
 
 ### Create Event
 
 Collect title, description, category, venue, start/end time, optional image
 URL, and publish/save state. The repository writes a top-level event with the
-admin's `communityId`, authenticated `createdBy`, timestamps, and
+admin's `communityId` (equal to admin UID), authenticated `createdBy` (admin UID), timestamps, and
 `isPublished`.
 
 ### My Events
 
-List events where `communityId` equals the admin's owned community. Admins can
+List events where `communityId` equals the admin's owned community (`communityId == adminUid`). Admins can
 open nested event details, edit, publish, unpublish, or delete events where
-allowed. Ownership is verified through `communities.createdBy`, not only the
-event's `createdBy`.
+allowed. Ownership is verified through the community document `communities/{adminUid}` (`community.id == adminUid` and `communities.createdBy == adminUid`), not only the
+event's `createdBy` audit field.
 
 ### Profile
 

@@ -10,30 +10,36 @@ exactly one account type in `users/{userId}`:
 accountType: "student" | "admin"
 ```
 
-The only account types are `student` and `admin`; multiple-community
-administration is outside the initial scope.
+The only account types are `student` and `admin`.
+
+Key rules:
+- An email address can belong to only one Firebase Authentication account in the same Firebase project. Therefore, an email registered as a Student cannot also be registered as a Community Admin.
+- Account type is selected during registration and remains immutable. There is no role upgrade, downgrade, or role transfer.
+- Community Admin registration is public self-registration. Do not introduce invitations, manual admin provisioning, approval workflows, or a separate admin-creation process.
 
 ## 2. Registration
 
 ### Student registration
 
-1. Validate name, email, password, and confirmation.
+1. Validate registration input (name, email, password, and confirmation).
 2. Create the Firebase Authentication account.
-3. Create `users/{uid}` with `accountType = "student"`.
-4. Open Student Experience.
+3. Obtain the authenticated UID.
+4. Create `users/{uid}` with `accountType = "student"`.
+5. Route to Student Experience.
+
+No community document is created for student registration.
 
 ### Community Admin registration
 
-1. Validate profile and community name, description, and category.
+1. Validate user and community details (name, email, password, community name, description, category).
 2. Create the Firebase Authentication account.
-3. Create `users/{uid}` with `accountType = "admin"`.
-4. Atomically create `communities/{communityId}` with `createdBy = uid`.
-5. Open Admin Experience for the created community.
+3. Obtain the authenticated UID.
+4. Create `users/{uid}` with `accountType = "admin"`.
+5. Create `communities/{uid}` with `createdBy = uid` (community document ID equals the admin UID).
+6. Write the user profile and community together in one Firestore batch or transaction.
+7. Route to Admin Experience only after both documents are valid.
 
-The creator automatically owns the community. Auth creation is separate from
-Firestore atomicity. If Auth succeeds
-but Firestore writes fail, show a recovery state, retry safely, and do not
-open Admin Experience until the profile and community are valid.
+The creator automatically owns the community. Firebase Authentication account creation and Firestore writes are separate operations. If Auth succeeds but Firestore writes fail, show a recovery state, retry missing writes safely, and do not route an incomplete admin account into Admin Experience.
 
 ## 3. Login and Startup Routing
 
@@ -45,12 +51,12 @@ open Admin Experience until the profile and community are valid.
 | Existing admin logs in | Admin Experience |
 | User logs out | Authentication screens |
 
-DataStore may store convenience preferences, but local state is never proof of
-authorization. On every startup, load `users/{uid}` from Firestore and verify
-that `accountType` is exactly `student` or `admin`.
-
-If the profile is missing, invalid, or unsupported, show a safe recovery/error
-state. Do not route into either protected experience based only on local data.
+Firebase Authentication establishes the session. On every startup:
+- Load `users/{uid}` from Firestore to provide the trusted account profile and role (`accountType`).
+- Student profiles (`accountType == "student"`) route to Student Experience.
+- Admin profiles (`accountType == "admin"`) must also have a valid `communities/{uid}` document before entering Admin Experience.
+- Missing, invalid, or incomplete profiles must enter a safe recovery/error state. Never route into either protected experience based only on local data.
+- DataStore may store convenience preferences, but local state is never proof of authorization.
 
 Authentication state distinguishes loading, signed out, authenticated, profile
 error, and registration recovery error. A temporary network error is not
@@ -60,32 +66,35 @@ treated as sign-out.
 
 ### Profiles
 
-- Users may read and update permitted fields only in their own profile.
-- `accountType` is restricted to `student` or `admin`.
-- Users cannot change their own `accountType` after creation.
-- Users cannot modify another user's profile.
+- A user can create only their own profile (`users/{userId}` where `userId == request.auth.uid`).
+- `accountType` must be exactly `student` or `admin`.
+- `accountType` cannot change after creation (immutable).
+- A user cannot modify another user's profile.
 - Profile operations use the authenticated UID, not a caller-supplied UID.
 
-### Communities
+### Student registration
 
-- Only an authenticated admin can create a community.
-- `communities.createdBy` must equal the authenticated UID.
-- Only the authenticated owner can update or delete that community.
-- A student cannot create or modify a community.
-- An admin cannot modify another admin's community.
-- No additional community-participation data is created.
-- Community deletion is disabled in the initial rules; events remain
-  associated with their community.
+- A student profile can be created without a community document.
+- A student cannot create a community.
+- A student can create registrations and bookmarks only under their own UID.
+
+### Admin registration and communities
+
+- An admin profile and its community must be created together in one Firestore batch or transaction.
+- The community document ID must equal the admin UID (`community.id == adminUid`).
+- `createdBy` must equal the admin UID (`createdBy == adminUid`).
+- The profile and community must agree on the admin identity (`users/{uid}` has `accountType == "admin"` and `communities/{uid}` has `createdBy == uid`).
+- An existing admin cannot create another community; one admin owns exactly one community.
+- Community ownership and document identity cannot be changed (`communities/{adminUid}`).
+- Any authenticated user can read community information (allowing students to resolve community details when displaying events), but only the owning admin can update their community.
+- Community deletion remains deferred.
 
 ### Events
 
 - Students can read published events.
-- Admins can create events only for their owned community.
-- Admins can update, publish, unpublish, or delete events only when
-  `event.communityId` identifies their owned community.
-- Students cannot create, update, publish, unpublish, or delete events.
-- `createdBy` is audit information; event ownership is verified through the
-  associated community's `createdBy`.
+- Admins can manage events only for their own community.
+- `events.communityId` must identify the admin's community (`events.communityId == adminUid`).
+- Ownership must be validated through the community document `communities/{adminUid}`.
 - `communityId` and `createdBy` remain immutable during event updates.
 
 ### Registrations and bookmarks
@@ -95,7 +104,7 @@ treated as sign-out.
   that the event exists, is published, and that the `eventId` field matches
   the document ID.
 - Admins may read registration records only through an event-specific
-  collection-group query for events owned by their community.
+  collection-group query for events owned by their community (`communityId == adminUid`).
 - Deterministic event IDs prevent duplicate subcollection records.
 
 Firestore Rules enforce these requirements. UI visibility and locally stored
@@ -106,7 +115,7 @@ account type are not security controls.
 The following is a design example, not a complete production ruleset. It
 shows the account, ownership, immutable-field, registration, and bookmark
 checks. Complete field validation and all application paths must be tested
-with the Firebase Emulator Suite before release.
+with the Firebase Emulator Suite before release, including atomic admin registration using `getAfter()` and `existsAfter()`.
 
 ```javascript
 rules_version = '2';
@@ -135,8 +144,22 @@ service cloud.firestore {
         ).data.accountType == type;
     }
 
+    function communityExistsAfter(userId) {
+      return existsAfter(
+        /databases/$(database)/documents/communities/$(userId)
+      );
+    }
+
+    function communityMatchesAdminAfter(userId) {
+      return communityExistsAfter(userId)
+        && getAfter(
+          /databases/$(database)/documents/communities/$(userId)
+        ).data.createdBy == userId;
+    }
+
     function ownsCommunity(communityId) {
       return currentAccountType("admin")
+        && communityId == request.auth.uid
         && get(
           /databases/$(database)/documents/communities/$(communityId)
         ).data.createdBy == request.auth.uid;
@@ -161,7 +184,18 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly([
           "name", "email", "accountType", "interests",
           "createdAt", "updatedAt"
-        ]);
+        ])
+        && (
+          (
+            request.resource.data.accountType == "student"
+            && !communityExistsAfter(userId)
+          )
+          ||
+          (
+            request.resource.data.accountType == "admin"
+            && communityMatchesAdminAfter(userId)
+          )
+        );
 
       allow update: if self(userId)
         && request.resource.data.accountType == resource.data.accountType
@@ -201,10 +235,8 @@ service cloud.firestore {
 
     match /communities/{communityId} {
       allow read: if signedIn();
-      allow create: if accountTypeAfter("admin")
-        && !exists(
-          /databases/$(database)/documents/users/$(request.auth.uid)
-        )
+      allow create: if self(communityId)
+        && accountTypeAfter("admin")
         && request.resource.data.keys().hasOnly([
           "name", "description", "category", "createdBy",
           "createdAt", "updatedAt"
@@ -234,7 +266,7 @@ service cloud.firestore {
 
 Student event queries must include `whereEqualTo("isPublished", true)`.
 Admin event queries must constrain `communityId` to the authenticated admin's
-owned community. Registration-count queries must use
+owned community (`communityId == adminUid`). Registration-count queries must use
 `collectionGroup("registrations").whereEqualTo("eventId", eventId).count()`
 only after ownership of the event is verified. Firestore Rules are not query
 filters; the Emulator Suite must confirm that this collection-group query is
@@ -253,6 +285,6 @@ Logout signs out Firebase Authentication, clears navigation and user-specific
 ViewModel state, and does not delete Firestore data.
 
 Emulator tests must cover student and admin accounts, invalid account types,
-account-type changes, cross-owner community writes, cross-community event
+account-type immutability, cross-owner community writes, cross-community event
 writes, unpublished-event visibility, registrations, bookmarks, missing
 profiles, and invalid startup routing.

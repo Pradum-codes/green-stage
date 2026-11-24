@@ -72,7 +72,7 @@ com.greenstage/
 | `notifications` | Local event reminder handling |
 
 Repository interfaces remain independent of Firebase SDK classes. ViewModels
-depend on interfaces, and Compose screens depend on ViewModel state. Manual
+depend on interfaces, and Compose screens depend on ViewModel state. Both mock and Firebase repository implementations adhere to the UID-based community ID convention (`communities/{adminUid}`). Manual
 object creation selects mock or Firebase implementations; no AppContainer,
 Hilt, Dagger, Koin, or other dependency-injection container is introduced.
 

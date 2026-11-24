@@ -17,23 +17,24 @@ calls inside `data/source/firebase/`.
 users/{userId}
 users/{userId}/registrations/{eventId}
 users/{userId}/bookmarks/{eventId}
-communities/{communityId}
+communities/{adminUid}
 events/{eventId}
 ```
 
-`users/{userId}` contains `accountType: "student" | "admin"`.
+`users/{userId}` contains `accountType: "student" | "admin"`. Account type is selected during registration and remains immutable. An email address can belong to only one Firebase Authentication account in the project. Community Admin registration is public self-registration.
+The community document ID in `communities/{adminUid}` equals the owning admin's Firebase Authentication UID (`adminUid`), and `createdBy` equals `adminUid`.
 Registration documents contain `eventId` and `registeredAt`; `eventId` must
 match the deterministic document ID.
 
 ## Registration and community creation
 
 Student registration creates the Auth account and user profile with
-`accountType = "student"`.
+`accountType = "student"`. No community document is created.
 
 Community Admin registration creates the Auth account, user profile with
-`accountType = "admin"`, and owned community with `createdBy = uid`. The
+`accountType = "admin"`, and owned community `communities/{uid}` with `createdBy = uid` (where community document ID equals admin UID). The
 profile and community writes occur in one Firestore batch or transaction after
-Auth succeeds. The operation must be retry-safe.
+Auth succeeds. The operation must be retry-safe. If Auth succeeds but Firestore writes fail, recovery handles missing writes before routing to Admin Experience.
 
 ## Queries and indexes
 
@@ -49,7 +50,7 @@ Admin dashboard and My Events:
 
 ```kotlin
 firestore.collection("events")
-    .whereEqualTo("communityId", adminCommunityId)
+    .whereEqualTo("communityId", adminUid)
     .orderBy("startAt")
 ```
 
@@ -62,7 +63,7 @@ firestore.collectionGroup("registrations")
 ```
 
 Before issuing this query, verify that the event belongs to the authenticated
-admin's owned community. The query must not expose unrelated registration
+admin's owned community (`communityId == adminUid`). The query must not expose unrelated registration
 records. Students alone may read, create, and delete their own registrations
 and bookmarks; admins cannot use those student operations directly. Students
 must query published events, while admins may query only their owned

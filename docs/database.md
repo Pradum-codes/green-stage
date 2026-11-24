@@ -11,17 +11,19 @@ users/{userId}
   registrations/{eventId}
   bookmarks/{eventId}
 
-communities/{communityId}
+communities/{adminUid}
 
 events/{eventId}
 ```
 
 Document ID rules:
 
-- User documents use Firebase Authentication UIDs.
-- Community and event documents use Firestore-generated IDs.
+- User and Community documents use Firebase Authentication UIDs (a community document ID equals its owning admin's UID).
+- Event documents use Firestore-generated IDs.
 - Registration and bookmark documents use deterministic event IDs.
-- Not every Firestore document ID is a user UID.
+- An email address can belong to only one Firebase Authentication account in the Firebase project; an email registered as a Student cannot also be registered as a Community Admin.
+- Account types (`student` or `admin`) are selected during registration and remain immutable. Role upgrades, downgrades, or transfers are not supported.
+- Community Admin registration is public self-registration; there are no invitations, approval workflows, or separate admin provisioning flows.
 
 ## 2. Users
 
@@ -65,7 +67,7 @@ Adding an existing bookmark is idempotent.
 
 ## 3. Communities
 
-**Path:** `communities/{communityId}`
+**Path:** `communities/{adminUid}`
 
 | Field | Type | Description |
 |---|---|---|
@@ -76,19 +78,16 @@ Adding an existing bookmark is idempotent.
 | `createdAt` | Timestamp | Creation time |
 | `updatedAt` | Timestamp | Last update time |
 
-The admin account created during the community-registration flow owns this
-community through `createdBy`. The initial scope supports one community per admin account. An admin owns only
-the community created during registration.
+The community document ID is equal to the owning admin's Firebase Authentication UID (`community.id == adminUid`).
+The `createdBy` field also equals `adminUid`. One admin owns exactly one community, and an admin cannot create a second community. Community ownership can be resolved directly using the authenticated UID (`communities/{authenticatedUid}`). Old assumptions of randomly generated Firestore IDs for communities are not used.
 
-Community creation writes the user profile and community in one Firestore
-batch or transaction after Firebase Authentication succeeds. The operation
-must be retry-safe so a failed retry does not create duplicate communities.
+Community creation writes the user profile (`users/{uid}`) and community (`communities/{uid}`) together in one Firestore batch or transaction after Firebase Authentication succeeds. Because Auth creation and Firestore writes are separate operations, a failure scenario where Auth succeeds but Firestore writes fail must show a recovery state and retry missing writes safely without routing an incomplete admin account into Admin Experience.
 
 ## 4. Events
 
 **Path:** `events/{eventId}`
 
-Every event has exactly one owning `communityId`.
+Every event has exactly one owning `communityId`. The meaning of `communityId` is explicit: **`events.communityId` equals the owning admin's UID (`adminUid`)**, which is also the community document ID.
 
 | Field | Type | Description |
 |---|---|---|
@@ -99,17 +98,13 @@ Every event has exactly one owning `communityId`.
 | `startAt` | Timestamp | Start time |
 | `endAt` | Timestamp | End time |
 | `imageUrl` | String or null | Optional image URL |
-| `communityId` | String | Owning community ID |
+| `communityId` | String | Owning community ID (equals admin UID) |
 | `createdBy` | String | Admin creator's Firebase Authentication UID |
 | `createdAt` | Timestamp | Event creation time |
 | `updatedAt` | Timestamp | Last update time |
 | `isPublished` | Boolean | Whether the event is discoverable |
 
-The application does not duplicate `organizerName` in the event. It resolves
-the community name using `communityId`, so community-name updates appear
-consistently. `createdBy` is audit information; event authorization verifies
-that the authenticated admin owns the event's community through
-`communities.createdBy`.
+The application does not duplicate `organizerName` or other community information in event documents. It resolves the community name using `communityId` directly via `communities/{communityId}`, so community-name updates appear consistently. `createdBy` is kept as audit information; event authorization verifies that the authenticated admin owns the event's community by checking `events.communityId == request.auth.uid` and verifying `communities/{adminUid}`.
 
 Firestore `Timestamp` values are converted to `Long` epoch milliseconds in
 Kotlin models and converted back before writes. `startAt` and `endAt` must be
@@ -136,7 +131,7 @@ firestore.collection("events")
 
 // Admin dashboard and My Events
 firestore.collection("events")
-    .whereEqualTo("communityId", adminCommunityId)
+    .whereEqualTo("communityId", adminUid)
     .orderBy("startAt")
 
 // Current user's registrations
@@ -161,7 +156,7 @@ firestore.collectionGroup("registrations")
 ```
 
 The admin may use this query only for an event whose `communityId` belongs to
-that admin. The query must be scoped to the selected event, and Security Rules
+that admin (where `communityId == adminUid`). The query must be scoped to the selected event, and Security Rules
 must authorize each returned registration by checking the event's owning
 community. Use Firestore count aggregation where supported; do not add a
 custom backend or Cloud Function solely for counting.
@@ -171,7 +166,7 @@ Security Rules, retrieve only authorized event-specific records or treat the
 count query as blocked until it is validated in the Firebase Emulator Suite.
 
 The student query requests only published events. The admin query requests
-only events for the admin's owned community. Potential composite indexes are:
+only events for the admin's owned community (`communityId == adminUid`). Potential composite indexes are:
 
 - `events`: `isPublished` ascending, `startAt` ascending.
 - `events`: `communityId` ascending, `startAt` ascending.
@@ -184,14 +179,11 @@ queries must constrain the data they request.
 
 - User profiles are readable and editable only by the authenticated owner.
 - `accountType` is restricted to `student` or `admin` and cannot be changed
-  after profile creation.
-- Community creation requires an authenticated admin account and matching
-  `createdBy`; the initial profile and community write are one atomic batch.
-- Community creation is limited to the initial admin-registration flow; an
-  existing admin profile cannot create a second community in the initial scope.
-- Only the authenticated owner can update that community. Community deletion
-  is deferred.
-- Event writes require an admin whose UID equals the community's `createdBy`.
+  after profile creation (immutable).
+- Community creation requires an authenticated admin account; the community document ID equals the admin UID (`communities/{adminUid}`) and `createdBy` equals `adminUid`. The initial profile (`users/{uid}`) and community (`communities/{uid}`) write are one atomic batch or transaction.
+- Community creation is limited to public self-registration during the Community Admin registration flow; an existing admin profile cannot create a second community. No invitations, manual provisioning, or approval workflows exist.
+- Any authenticated user can read community information (allowing students to resolve community names when displaying events), but only the authenticated owner can update that community (`communities/{adminUid}`). Community ownership and document identity cannot be changed. Community deletion is deferred.
+- Event writes require an admin whose UID equals `events.communityId`.
 - Event updates cannot change `communityId` or `createdBy`.
 - Students can read published events but cannot write events or communities.
 - Registration and bookmark paths must contain the authenticated user's UID.

@@ -162,7 +162,7 @@ Additional rules:
 - The trusted account type is the Firestore user profile's `accountType`, not a user-editable preference.
 - DataStore may hold convenience preferences but is not the source of truth for account type or authentication.
 - The root application/navigation coordinator owns auth-state observation and top-level graph selection.
-- Admin access requires a valid admin profile and the required owned community. Community ownership is verified through `communities.createdBy`, not merely through an event's `createdBy`.
+- Admin access requires a valid admin profile (`users/{uid}`) AND the required owned community (`communities/{uid}`). Community document ID equals the authenticated admin's UID (`community.id == adminUid` and `communities.createdBy == adminUid`), allowing direct retrieval via `communities/{authenticatedUid}`.
 - Logout clears the authenticated session and returns the application to authentication screens. It does not delete persisted user or event data.
 - A missing, invalid or unsupported profile must lead to a safe recovery/error state, never a protected graph.
 

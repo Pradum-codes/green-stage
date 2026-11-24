@@ -99,9 +99,9 @@ data class CommunityRegistrationResult(
 ```
 
 `registerCommunityAdmin` creates Auth credentials, a profile with
-`accountType = ADMIN`, and the creator's community with `createdBy = uid`.
+`accountType = ADMIN`, and the creator's community `communities/{uid}` with `createdBy = uid` (where the community document ID equals the admin's UID).
 The profile and community writes use one Firestore batch or transaction after
-Auth succeeds. The operation must be retry-safe.
+Auth succeeds. The operation must be retry-safe. If Auth succeeds but Firestore writes fail, AuthRepository exposes recovery state so incomplete admin accounts are not routed into Admin Experience.
 
 ## 4. UserRepository
 
@@ -135,10 +135,11 @@ interface CommunityRepository {
 }
 ```
 
-Admin registration is the single Firestore operation that creates the
-community; `CommunityRepository` does not expose a second creation workflow.
-Community updates require the authenticated UID to equal
-`communities.createdBy`. Community deletion is deferred.
+`CommunityRepository.getOwnedCommunity()` retrieves `communities/{authenticatedUid}` directly using the authenticated admin UID. It may still verify that `createdBy` equals the authenticated UID.
+`FirebaseCommunityRepository` derives the authenticated UID from Firebase Auth rather than trusting a UID supplied by the UI.
+`MockCommunityRepository` retrieves the owned community directly using the admin UID.
+Admin registration is the single operation that creates the community; `CommunityRepository` does not expose a second creation workflow.
+Community updates require `communityId` and `createdBy` to equal the authenticated UID. Community deletion is deferred.
 
 ## 6. EventRepository
 
@@ -157,10 +158,8 @@ interface EventRepository {
 }
 ```
 
-The Firebase implementation derives the UID from Auth and verifies that the
-admin owns `event.communityId` through `communities.createdBy`. It does not
-accept an acting-user ID argument. Student discovery queries
-`isPublished == true`; admin My Events queries the admin's community ID.
+Admin-created events must use the admin UID as `communityId` (`events.communityId == adminUid`).
+The Firebase implementation derives the UID from Auth and verifies that the admin owns `event.communityId` directly against the authenticated UID and `communities/{authenticatedUid}`. It does not accept an acting-user ID argument. Student discovery queries `isPublished == true`; admin My Events queries the admin's community ID (`communityId == adminUid`).
 
 Every event write validates required fields, `endAt > startAt`, immutable
 `communityId`, immutable `createdBy`, and ownership of the associated
@@ -192,7 +191,7 @@ firestore.collectionGroup("registrations")
 ```
 
 The query is allowed only after the event's `communityId` is verified against
-the authenticated admin's owned community. Validate this query and its
+the authenticated admin's owned community (`communityId == adminUid`). Validate this query and its
 Security Rules in the Firebase Emulator Suite. It must not return unrelated
 student registration data.
 
@@ -217,9 +216,8 @@ documents, network errors, duplicate registrations, and permission denials.
 ViewModels decide how to display them.
 
 Mock repositories implement the same contracts without Firebase imports and
-model both account types, one admin-owned community, published discovery,
-registrations, bookmarks, and admin event management. Firebase repositories
-map the same models to Firestore and keep SDK exceptions inside the data layer.
+model both account types, one admin-owned community (where mock admin community IDs equal their admin user IDs), published discovery,
+registrations, bookmarks, and admin event management. `MockAuthRepository` and `MockCommunityRepository` follow the UID-based community ID convention. Firebase repositories map the same models to Firestore and keep SDK exceptions inside the data layer.
 
 Manual object creation selects mock or Firebase implementations. No Hilt,
 Dagger, Koin, AppContainer, UseCase layer, custom backend, or separate domain
