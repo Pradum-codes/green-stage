@@ -18,9 +18,19 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        val app = application as GreenStageApplication
+
         setContent {
             GreenStageTheme {
-                AppNavigation()
+                AppNavigation(
+                    authRepository = app.authRepository,
+                    userRepository = app.userRepository,
+                    communityRepository = app.communityRepository,
+                    eventRepository = app.eventRepository,
+                    registrationRepository = app.registrationRepository,
+                    bookmarkRepository = app.bookmarkRepository
+                )
             }
         }
     }
