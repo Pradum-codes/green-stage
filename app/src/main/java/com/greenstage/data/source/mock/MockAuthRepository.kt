@@ -114,7 +114,7 @@ internal class MockAuthRepository(
             )
 
             val community = Community(
-                id = UUID.randomUUID().toString(),
+                id = user.id,
                 name = communityName.trim(),
                 description = communityDescription.trim(),
                 category = communityCategory.trim(),

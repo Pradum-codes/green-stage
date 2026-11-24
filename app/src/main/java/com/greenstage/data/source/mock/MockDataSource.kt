@@ -68,7 +68,7 @@ internal class MockDataSource {
 
         // 3. Demo Admin Community
         val demoCommunity = Community(
-            id = "demo-community",
+            id = demoAdmin.id,
             name = "Green Stage Tech Community",
             description = "The official developer & tech community showcasing workshops, hackathons, and tech talks.",
             category = "Technology",

@@ -19,9 +19,14 @@ internal class MockCommunityRepository(
                 "Only administrators can access their community."
             }
 
-            dataSource.communities.values.firstOrNull {
-                it.createdBy == userId
-            } ?: error("Owned community not found.")
+            val community = dataSource.communities[userId]
+                ?: error("Owned community not found.")
+
+            check(community.createdBy == userId) {
+                "You do not own this community."
+            }
+
+            community
         }
     }
 

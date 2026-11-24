@@ -98,9 +98,8 @@ internal class MockEventRepository(
             synchronized(dataSource.lock) {
                 val userId = requireAdmin()
 
-                val community = dataSource.communities.values.firstOrNull {
-                    it.createdBy == userId
-                } ?: error("Owned community not found.")
+                val community = dataSource.communities[userId]
+                    ?: error("Owned community not found.")
 
                 dataSource.events.values
                     .filter { it.communityId == community.id }

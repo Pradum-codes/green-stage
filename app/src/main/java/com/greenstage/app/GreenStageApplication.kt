@@ -3,47 +3,71 @@ package com.greenstage.app
 import android.app.Application
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
-
 import com.greenstage.data.repository.AuthRepository
 import com.greenstage.data.repository.BookmarkRepository
 import com.greenstage.data.repository.CommunityRepository
 import com.greenstage.data.repository.EventRepository
 import com.greenstage.data.repository.RegistrationRepository
 import com.greenstage.data.repository.UserRepository
-
-import com.greenstage.data.source.mock.MockDataSource
+import com.greenstage.data.source.firebase.FirebaseAuthRepository
+import com.greenstage.data.source.firebase.FirebaseCommunityRepository
+import com.greenstage.data.source.firebase.FirebaseEventRepository
 import com.greenstage.data.source.mock.MockAuthRepository
 import com.greenstage.data.source.mock.MockBookmarkRepository
 import com.greenstage.data.source.mock.MockCommunityRepository
+import com.greenstage.data.source.mock.MockDataSource
 import com.greenstage.data.source.mock.MockEventRepository
 import com.greenstage.data.source.mock.MockRegistrationRepository
 import com.greenstage.data.source.mock.MockUserRepository
 
 class GreenStageApplication : Application() {
 
-    // One shared data source for all mock repositories.
-    private val mockDataSource = MockDataSource()
+    companion object {
+        // Toggle flag for environment selection. Default is false (Firebase mode).
+        const val USE_MOCK_REPOSITORIES = false
+    }
 
-    // Repository instances exposed through interfaces.
-    val authRepository: AuthRepository =
-        MockAuthRepository(mockDataSource)
+    private val mockDataSource by lazy { MockDataSource() }
 
-    val userRepository: UserRepository =
+    val firebaseAuth: FirebaseAuth by lazy { FirebaseAuth.getInstance() }
+    val firebaseFirestore: FirebaseFirestore by lazy { FirebaseFirestore.getInstance() }
+
+    val authRepository: AuthRepository by lazy {
+        if (USE_MOCK_REPOSITORIES) {
+            MockAuthRepository(mockDataSource)
+        } else {
+            FirebaseAuthRepository(firebaseAuth, firebaseFirestore)
+        }
+    }
+
+    val userRepository: UserRepository by lazy {
         MockUserRepository(mockDataSource)
+    }
 
-    val communityRepository: CommunityRepository =
-        MockCommunityRepository(mockDataSource)
+    val communityRepository: CommunityRepository by lazy {
+        if (USE_MOCK_REPOSITORIES) {
+            MockCommunityRepository(mockDataSource)
+        } else {
+            FirebaseCommunityRepository(firebaseAuth, firebaseFirestore)
+        }
+    }
 
-    val eventRepository: EventRepository =
-        MockEventRepository(mockDataSource)
+    val eventRepository: EventRepository by lazy {
+        if (USE_MOCK_REPOSITORIES) {
+            MockEventRepository(mockDataSource)
+        } else {
+            FirebaseEventRepository(firebaseAuth, firebaseFirestore)
+        }
+    }
 
-    val registrationRepository: RegistrationRepository =
+    val registrationRepository: RegistrationRepository by lazy {
         MockRegistrationRepository(mockDataSource)
+    }
 
-    val bookmarkRepository: BookmarkRepository =
+    val bookmarkRepository: BookmarkRepository by lazy {
         MockBookmarkRepository(mockDataSource)
+    }
 
-    // Configured for Physical Device Connectivity
     override fun onCreate() {
         super.onCreate()
 
@@ -53,37 +77,8 @@ class GreenStageApplication : Application() {
         )
 
         if (BuildConfig.DEBUG) {
-            FirebaseAuth.getInstance()
-                .useEmulator("127.0.0.1", 9099)
-
-            FirebaseFirestore.getInstance()
-                .useEmulator("127.0.0.1", 8080)
-//        }
-
-//        if (BuildConfig.DEBUG) {
-            FirebaseFirestore.getInstance()
-                .collection("connectivity_test")
-                .document("android_device")
-                .set(
-                    mapOf(
-                        "message" to "Connected to Firestore Emulator",
-                        "device" to android.os.Build.MODEL,
-                        "timestamp" to System.currentTimeMillis()
-                    )
-                )
-                .addOnSuccessListener {
-                    android.util.Log.d(
-                        "FirebaseTest",
-                        "Firestore emulator connection successful"
-                    )
-                }
-                .addOnFailureListener { exception ->
-                    android.util.Log.e(
-                        "FirebaseTest",
-                        "Firestore emulator connection failed",
-                        exception
-                    )
-                }
+            firebaseAuth.useEmulator("127.0.0.1", 9099)
+            firebaseFirestore.useEmulator("127.0.0.1", 8080)
         }
     }
 }

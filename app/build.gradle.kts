@@ -59,6 +59,7 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
 
     // COROUTINES
+    implementation(libs.kotlinx.coroutines.play.services)
     testImplementation(libs.kotlinx.coroutines.test)
 
     // FIREBASE

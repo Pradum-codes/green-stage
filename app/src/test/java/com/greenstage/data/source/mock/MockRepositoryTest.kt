@@ -180,11 +180,11 @@ class MockDemoAuthTest {
         assertNotNull(dataSource.users["demo-admin"])
         assertEquals("admin@greenstage.demo", dataSource.users["demo-admin"]?.email)
 
-        assertNotNull(dataSource.communities["demo-community"])
-        assertEquals("demo-admin", dataSource.communities["demo-community"]?.createdBy)
+        assertNotNull(dataSource.communities["demo-admin"])
+        assertEquals("demo-admin", dataSource.communities["demo-admin"]?.createdBy)
 
         assertTrue(dataSource.events.size >= 3)
-        assertTrue(dataSource.events.values.all { it.communityId == "demo-community" })
+        assertTrue(dataSource.events.values.all { it.communityId == "demo-admin" })
     }
 
     @Test
@@ -231,7 +231,7 @@ class MockDemoAuthTest {
         fixture.auth.loginAsDemo(AccountType.ADMIN).getOrThrow()
 
         val ownedCommunity = fixture.communities.getOwnedCommunity().getOrThrow()
-        assertEquals("demo-community", ownedCommunity.id)
+        assertEquals("demo-admin", ownedCommunity.id)
         assertEquals("demo-admin", ownedCommunity.createdBy)
 
         val ownedEvents = fixture.events.getOwnedCommunityEvents().getOrThrow()
