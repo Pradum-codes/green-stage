@@ -133,11 +133,23 @@ fun AppNavigation(
             }
         }
 
-        authNavigation()
+        authNavigation(
+            authRepository = authRepository,
+            navController = navController
+        )
 
-        studentNavigation()
+        studentNavigation(
+            authRepository = authRepository,
+            eventRepository = eventRepository,
+            navController = navController
+        )
 
-        adminNavigation()
+        adminNavigation(
+            authRepository = authRepository,
+            communityRepository = communityRepository,
+            eventRepository = eventRepository,
+            navController = navController
+        )
 
         composable(Routes.PROFILE_ERROR) {
             val message = (authState as? AuthState.ProfileError)?.message ?: "Profile Error"
