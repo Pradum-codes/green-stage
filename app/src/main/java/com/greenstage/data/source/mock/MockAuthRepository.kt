@@ -15,6 +15,25 @@ internal class MockAuthRepository(
     private val dataSource: MockDataSource
 ) : AuthRepository {
 
+    suspend fun loginAsDemo(
+        accountType: AccountType
+    ): Result<User> = runCatching {
+        synchronized(dataSource.lock) {
+            val targetId = when (accountType) {
+                AccountType.STUDENT -> "demo-student"
+                AccountType.ADMIN -> "demo-admin"
+            }
+
+            val user = dataSource.users[targetId]
+                ?: error("Demo account for ${accountType.name} not found.")
+
+            dataSource.currentUserId = user.id
+            dataSource.authState.value = AuthState.Authenticated(user)
+
+            user
+        }
+    }
+
     override suspend fun registerStudent(
         name: String,
         email: String,

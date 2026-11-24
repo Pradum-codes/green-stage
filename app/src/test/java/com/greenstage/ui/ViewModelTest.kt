@@ -51,8 +51,35 @@ class ViewModelTest {
     }
 
     @Test
+    fun authViewModel_isDemoAvailable() {
+        val viewModel = AuthViewModel(authRepository)
+        assertTrue(viewModel.uiState.value.isDemoAvailable)
+    }
+
+    @Test
+    fun authViewModel_loginAsDemoStudent() = runTest {
+        val viewModel = AuthViewModel(authRepository)
+        viewModel.loginAsDemo(AccountType.STUDENT)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertNull(state.errorMessage)
+        assertEquals("demo-student", dataSource.currentUserId)
+    }
+
+    @Test
+    fun authViewModel_loginAsDemoAdmin() = runTest {
+        val viewModel = AuthViewModel(authRepository)
+        viewModel.loginAsDemo(AccountType.ADMIN)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertNull(state.errorMessage)
+        assertEquals("demo-admin", dataSource.currentUserId)
+    }
+
+    @Test
     fun authViewModel_loginSuccess() = runTest {
-        // Register a student first
         authRepository.registerStudent("John", "john@example.com", "password123")
         authRepository.logout()
 
@@ -63,7 +90,8 @@ class ViewModelTest {
         val state = viewModel.uiState.value
         assertNull(state.errorMessage)
         assertEquals(false, state.isLoading)
-        assertEquals(dataSource.currentUserId, dataSource.users.values.first().id)
+        val johnUser = dataSource.users.values.first { it.email == "john@example.com" }
+        assertEquals(dataSource.currentUserId, johnUser.id)
     }
 
     @Test
@@ -85,7 +113,8 @@ class ViewModelTest {
 
         val state = viewModel.uiState.value
         assertNull(state.errorMessage)
-        assertEquals(AccountType.STUDENT, dataSource.users.values.first().accountType)
+        val createdStudent = dataSource.users.values.first { it.email == "student1@example.com" }
+        assertEquals(AccountType.STUDENT, createdStudent.accountType)
     }
 
     @Test
@@ -103,13 +132,13 @@ class ViewModelTest {
 
         val state = viewModel.uiState.value
         assertNull(state.errorMessage)
-        assertEquals(AccountType.ADMIN, dataSource.users.values.first().accountType)
-        assertEquals(1, dataSource.communities.size)
+        val createdAdmin = dataSource.users.values.first { it.email == "admin1@example.com" }
+        assertEquals(AccountType.ADMIN, createdAdmin.accountType)
+        assertTrue(dataSource.communities.values.any { it.name == "Tech Club" })
     }
 
     @Test
     fun homeViewModel_loadPublishedEvents() = runTest {
-        // Create an admin and a published event
         val adminReg = authRepository.registerCommunityAdmin(
             name = "Admin", email = "admin@example.com", password = "password123",
             communityName = "Tech Club", communityDescription = "Desc", communityCategory = "Tech"
@@ -138,8 +167,7 @@ class ViewModelTest {
         val state = viewModel.uiState.value
         assertTrue(state is HomeUiState.Success)
         val events = (state as HomeUiState.Success).events
-        assertEquals(1, events.size)
-        assertEquals("Kotlin Conf", events[0].title)
+        assertTrue(events.any { it.title == "Kotlin Conf" })
     }
 
     @Test
@@ -180,8 +208,7 @@ class ViewModelTest {
 
         val state = viewModel.uiState.value
         assertTrue(state.isSuccess)
-        assertEquals(1, dataSource.events.size)
-        assertEquals("New Android Workshop", dataSource.events.values.first().title)
+        assertTrue(dataSource.events.values.any { it.title == "New Android Workshop" })
     }
 
     @Test

@@ -3,7 +3,9 @@ package com.greenstage.ui.auth
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.greenstage.data.model.AccountType
 import com.greenstage.data.repository.AuthRepository
+import com.greenstage.data.source.mock.MockAuthRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -15,6 +17,35 @@ class AuthViewModel(
 
     private val _uiState = MutableStateFlow(AuthUiState())
     val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
+
+    init {
+        _uiState.value = _uiState.value.copy(
+            isDemoAvailable = authRepository is MockAuthRepository
+        )
+    }
+
+    fun loginAsDemo(accountType: AccountType) {
+        val mockAuthRepo = authRepository as? MockAuthRepository
+        if (mockAuthRepo == null) {
+            _uiState.value = _uiState.value.copy(
+                errorMessage = "Demo mode is only available in mock environment."
+            )
+            return
+        }
+
+        _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
+        viewModelScope.launch {
+            val result = mockAuthRepo.loginAsDemo(accountType)
+            if (result.isFailure) {
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    errorMessage = result.exceptionOrNull()?.message ?: "Demo login failed."
+                )
+            } else {
+                _uiState.value = _uiState.value.copy(isLoading = false)
+            }
+        }
+    }
 
     fun login(email: String, password: String) {
         if (email.isBlank() || password.isBlank()) {

@@ -169,6 +169,109 @@ class MockAuthRepositoryTest {
     }
 }
 
+class MockDemoAuthTest {
+    @Test
+    fun demoDataInitializedCorrectly() {
+        val dataSource = MockDataSource()
+
+        assertNotNull(dataSource.users["demo-student"])
+        assertEquals("student@greenstage.demo", dataSource.users["demo-student"]?.email)
+
+        assertNotNull(dataSource.users["demo-admin"])
+        assertEquals("admin@greenstage.demo", dataSource.users["demo-admin"]?.email)
+
+        assertNotNull(dataSource.communities["demo-community"])
+        assertEquals("demo-admin", dataSource.communities["demo-community"]?.createdBy)
+
+        assertTrue(dataSource.events.size >= 3)
+        assertTrue(dataSource.events.values.all { it.communityId == "demo-community" })
+    }
+
+    @Test
+    fun loginAsDemo_studentSucceedsAndUpdatesAuthState() = runBlocking {
+        val fixture = MockRepositoryFixture()
+
+        val result = fixture.auth.loginAsDemo(AccountType.STUDENT)
+        assertTrue(result.isSuccess)
+
+        val user = result.getOrThrow()
+        assertEquals("demo-student", user.id)
+        assertEquals(AccountType.STUDENT, user.accountType)
+        assertEquals(user.id, fixture.dataSource.currentUserId)
+        assertEquals(AuthState.Authenticated(user), fixture.auth.observeAuthState().first())
+    }
+
+    @Test
+    fun loginAsDemo_adminSucceedsAndUpdatesAuthState() = runBlocking {
+        val fixture = MockRepositoryFixture()
+
+        val result = fixture.auth.loginAsDemo(AccountType.ADMIN)
+        assertTrue(result.isSuccess)
+
+        val user = result.getOrThrow()
+        assertEquals("demo-admin", user.id)
+        assertEquals(AccountType.ADMIN, user.accountType)
+        assertEquals(user.id, fixture.dataSource.currentUserId)
+        assertEquals(AuthState.Authenticated(user), fixture.auth.observeAuthState().first())
+    }
+
+    @Test
+    fun demoStudentCanRetrievePublishedEvents() = runBlocking {
+        val fixture = MockRepositoryFixture()
+        fixture.auth.loginAsDemo(AccountType.STUDENT).getOrThrow()
+
+        val publishedEvents = fixture.events.getPublishedEvents().getOrThrow()
+        assertTrue(publishedEvents.isNotEmpty())
+        assertTrue(publishedEvents.any { it.id == "demo-event-1" })
+    }
+
+    @Test
+    fun demoAdminCanRetrieveOwnedCommunityEventsAndValidateCommunity() = runBlocking {
+        val fixture = MockRepositoryFixture()
+        fixture.auth.loginAsDemo(AccountType.ADMIN).getOrThrow()
+
+        val ownedCommunity = fixture.communities.getOwnedCommunity().getOrThrow()
+        assertEquals("demo-community", ownedCommunity.id)
+        assertEquals("demo-admin", ownedCommunity.createdBy)
+
+        val ownedEvents = fixture.events.getOwnedCommunityEvents().getOrThrow()
+        assertTrue(ownedEvents.isNotEmpty())
+        assertTrue(ownedEvents.all { it.communityId == ownedCommunity.id })
+    }
+
+    @Test
+    fun logoutClearsDemoSession() = runBlocking {
+        val fixture = MockRepositoryFixture()
+        fixture.auth.loginAsDemo(AccountType.STUDENT).getOrThrow()
+
+        fixture.auth.logout().getOrThrow()
+
+        assertNull(fixture.dataSource.currentUserId)
+        assertEquals(AuthState.SignedOut, fixture.auth.observeAuthState().first())
+    }
+
+    @Test
+    fun demoAuthDoesNotBreakRegularRegistrationAndLogin() = runBlocking {
+        val fixture = MockRepositoryFixture()
+
+        // 1. Regular student registration
+        val student = fixture.auth.registerStudent("New Student", "newstudent@example.com", "password123").getOrThrow()
+        assertEquals("newstudent@example.com", student.email)
+
+        fixture.auth.logout().getOrThrow()
+
+        // 2. Demo admin login
+        fixture.auth.loginAsDemo(AccountType.ADMIN).getOrThrow()
+        assertEquals("demo-admin", fixture.dataSource.currentUserId)
+
+        fixture.auth.logout().getOrThrow()
+
+        // 3. Regular student login
+        val relogged = fixture.auth.login("newstudent@example.com", "password123").getOrThrow()
+        assertEquals(student.id, relogged.id)
+    }
+}
+
 class MockUserRepositoryTest {
     @Test
     fun getCurrentUser_failsWhenSignedOut() = runBlocking {
@@ -263,6 +366,8 @@ class MockEventRepositoryTest {
     fun adminCanCreateListUpdateAndPublishOwnedEvent() = runBlocking {
         val fixture = MockRepositoryFixture()
         val admin = fixture.createAdmin()
+        val initialPublishedCount = fixture.events.getPublishedEvents().getOrThrow().size
+
         val draft = fixture.event(
             communityId = admin.community.id,
             createdBy = admin.user.id,
@@ -270,7 +375,7 @@ class MockEventRepositoryTest {
         )
 
         assertEquals(draft.id, fixture.events.createEvent(draft).getOrThrow())
-        assertTrue(fixture.events.getPublishedEvents().getOrThrow().isEmpty())
+        assertEquals(initialPublishedCount, fixture.events.getPublishedEvents().getOrThrow().size)
         assertEquals(draft, fixture.events.getEvent(draft.id).getOrThrow())
 
         val edited = draft.copy(title = "Updated Workshop")
@@ -278,7 +383,7 @@ class MockEventRepositoryTest {
         fixture.events.setPublished(draft.id, true).getOrThrow()
 
         assertEquals("Updated Workshop", fixture.events.getEvent(draft.id).getOrThrow().title)
-        assertEquals(1, fixture.events.getPublishedEvents().getOrThrow().size)
+        assertEquals(initialPublishedCount + 1, fixture.events.getPublishedEvents().getOrThrow().size)
         assertEquals(1, fixture.events.getOwnedCommunityEvents().getOrThrow().size)
     }
 
@@ -518,7 +623,7 @@ class MockRepositoriesIntegrationTest {
         fixture.createStudent()
 
         val discovered = fixture.events.getPublishedEvents().getOrThrow()
-        assertEquals(event.id, discovered.single().id)
+        assertTrue(discovered.any { it.id == event.id })
 
         fixture.registrations.registerForEvent(event.id).getOrThrow()
         fixture.bookmarks.addBookmark(event.id).getOrThrow()
