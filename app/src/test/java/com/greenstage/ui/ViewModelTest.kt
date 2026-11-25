@@ -2,9 +2,11 @@ package com.greenstage.ui
 
 import com.greenstage.data.model.AccountType
 import com.greenstage.data.source.mock.MockAuthRepository
+import com.greenstage.data.source.mock.MockBookmarkRepository
 import com.greenstage.data.source.mock.MockCommunityRepository
 import com.greenstage.data.source.mock.MockDataSource
 import com.greenstage.data.source.mock.MockEventRepository
+import com.greenstage.data.source.mock.MockRegistrationRepository
 import com.greenstage.ui.admin.createevent.CreateEventViewModel
 import com.greenstage.ui.admin.dashboard.DashboardUiState
 import com.greenstage.ui.admin.dashboard.DashboardViewModel
@@ -35,6 +37,8 @@ class ViewModelTest {
     private lateinit var authRepository: MockAuthRepository
     private lateinit var communityRepository: MockCommunityRepository
     private lateinit var eventRepository: MockEventRepository
+    private lateinit var registrationRepository: MockRegistrationRepository
+    private lateinit var bookmarkRepository: MockBookmarkRepository
 
     @Before
     fun setUp() {
@@ -43,6 +47,8 @@ class ViewModelTest {
         authRepository = MockAuthRepository(dataSource)
         communityRepository = MockCommunityRepository(dataSource)
         eventRepository = MockEventRepository(dataSource)
+        registrationRepository = MockRegistrationRepository(dataSource)
+        bookmarkRepository = MockBookmarkRepository(dataSource)
     }
 
     @After
@@ -235,7 +241,7 @@ class ViewModelTest {
         )
         eventRepository.createEvent(event)
 
-        val viewModel = EventViewModel(eventRepository)
+        val viewModel = EventViewModel(eventRepository, registrationRepository, bookmarkRepository)
         viewModel.loadEvent("event-details-1")
         testDispatcher.scheduler.advanceUntilIdle()
 

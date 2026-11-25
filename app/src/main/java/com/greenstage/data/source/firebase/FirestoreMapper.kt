@@ -3,8 +3,10 @@ package com.greenstage.data.source.firebase
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentSnapshot
 import com.greenstage.data.model.AccountType
+import com.greenstage.data.model.Bookmark
 import com.greenstage.data.model.Community
 import com.greenstage.data.model.Event
+import com.greenstage.data.model.Registration
 import com.greenstage.data.model.User
 import java.util.Date
 
@@ -102,5 +104,18 @@ object FirestoreMapper {
             updatedAt = updatedAt,
             isPublished = isPublished
         )
+    }
+
+    fun DocumentSnapshot.toRegistration(eventId: String): Registration? {
+        if (!exists()) return null
+        val regEventId = getString("eventId") ?: eventId
+        val registeredAt = toEpochMillis("registeredAt")
+        return Registration(eventId = regEventId, registeredAt = registeredAt)
+    }
+
+    fun DocumentSnapshot.toBookmark(eventId: String): Bookmark? {
+        if (!exists()) return null
+        val savedAt = toEpochMillis("savedAt")
+        return Bookmark(eventId = eventId, savedAt = savedAt)
     }
 }

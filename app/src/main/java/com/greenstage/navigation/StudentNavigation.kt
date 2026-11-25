@@ -8,7 +8,9 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import androidx.navigation.navigation
 import com.greenstage.data.repository.AuthRepository
+import com.greenstage.data.repository.BookmarkRepository
 import com.greenstage.data.repository.EventRepository
+import com.greenstage.data.repository.RegistrationRepository
 import com.greenstage.ui.events.EventDetailsScreen
 import com.greenstage.ui.events.EventViewModel
 import com.greenstage.ui.home.HomeScreen
@@ -17,6 +19,8 @@ import com.greenstage.ui.home.HomeViewModel
 fun NavGraphBuilder.studentNavigation(
     authRepository: AuthRepository,
     eventRepository: EventRepository,
+    registrationRepository: RegistrationRepository,
+    bookmarkRepository: BookmarkRepository,
     navController: NavHostController
 ) {
     navigation(
@@ -45,7 +49,7 @@ fun NavGraphBuilder.studentNavigation(
         ) { backStackEntry ->
             val eventId = backStackEntry.arguments?.getString(Routes.ARG_EVENT_ID) ?: ""
             val viewModel: EventViewModel = viewModel(
-                factory = EventViewModel.Factory(eventRepository)
+                factory = EventViewModel.Factory(eventRepository, registrationRepository, bookmarkRepository)
             )
             EventDetailsScreen(
                 eventId = eventId,

@@ -10,8 +10,10 @@ import com.greenstage.data.repository.EventRepository
 import com.greenstage.data.repository.RegistrationRepository
 import com.greenstage.data.repository.UserRepository
 import com.greenstage.data.source.firebase.FirebaseAuthRepository
+import com.greenstage.data.source.firebase.FirebaseBookmarkRepository
 import com.greenstage.data.source.firebase.FirebaseCommunityRepository
 import com.greenstage.data.source.firebase.FirebaseEventRepository
+import com.greenstage.data.source.firebase.FirebaseRegistrationRepository
 import com.greenstage.data.source.firebase.FirebaseUserRepository
 import com.greenstage.data.source.mock.MockAuthRepository
 import com.greenstage.data.source.mock.MockBookmarkRepository
@@ -66,11 +68,19 @@ class GreenStageApplication : Application() {
     }
 
     val registrationRepository: RegistrationRepository by lazy {
-        MockRegistrationRepository(mockDataSource)
+        if (USE_MOCK_REPOSITORIES) {
+            MockRegistrationRepository(mockDataSource)
+        } else {
+            FirebaseRegistrationRepository(firebaseAuth, firebaseFirestore)
+        }
     }
 
     val bookmarkRepository: BookmarkRepository by lazy {
-        MockBookmarkRepository(mockDataSource)
+        if (USE_MOCK_REPOSITORIES) {
+            MockBookmarkRepository(mockDataSource)
+        } else {
+            FirebaseBookmarkRepository(firebaseAuth, firebaseFirestore)
+        }
     }
 
     override fun onCreate() {

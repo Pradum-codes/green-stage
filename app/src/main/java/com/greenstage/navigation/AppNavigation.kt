@@ -141,6 +141,8 @@ fun AppNavigation(
         studentNavigation(
             authRepository = authRepository,
             eventRepository = eventRepository,
+            registrationRepository = registrationRepository,
+            bookmarkRepository = bookmarkRepository,
             navController = navController
         )
 
@@ -148,6 +150,8 @@ fun AppNavigation(
             authRepository = authRepository,
             communityRepository = communityRepository,
             eventRepository = eventRepository,
+            registrationRepository = registrationRepository,
+            bookmarkRepository = bookmarkRepository,
             navController = navController
         )
 
