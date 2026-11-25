@@ -12,6 +12,7 @@ import com.greenstage.data.repository.UserRepository
 import com.greenstage.data.source.firebase.FirebaseAuthRepository
 import com.greenstage.data.source.firebase.FirebaseCommunityRepository
 import com.greenstage.data.source.firebase.FirebaseEventRepository
+import com.greenstage.data.source.firebase.FirebaseUserRepository
 import com.greenstage.data.source.mock.MockAuthRepository
 import com.greenstage.data.source.mock.MockBookmarkRepository
 import com.greenstage.data.source.mock.MockCommunityRepository
@@ -41,7 +42,11 @@ class GreenStageApplication : Application() {
     }
 
     val userRepository: UserRepository by lazy {
-        MockUserRepository(mockDataSource)
+        if (USE_MOCK_REPOSITORIES) {
+            MockUserRepository(mockDataSource)
+        } else {
+            FirebaseUserRepository(firebaseAuth, firebaseFirestore)
+        }
     }
 
     val communityRepository: CommunityRepository by lazy {

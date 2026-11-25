@@ -1,10 +1,11 @@
 package com.greenstage.data.source.firebase
 
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.greenstage.data.model.Event
 import com.greenstage.data.repository.EventRepository
+import com.greenstage.data.source.firebase.FirestoreMapper.toEvent
+import com.greenstage.data.source.firebase.FirestoreMapper.toTimestamp
 import kotlinx.coroutines.tasks.await
 
 class FirebaseEventRepository(
@@ -33,13 +34,13 @@ class FirebaseEventRepository(
             "description" to event.description.trim(),
             "category" to event.category.trim(),
             "venue" to event.venue.trim(),
-            "startAt" to event.startAt,
-            "endAt" to event.endAt,
+            "startAt" to event.startAt.toTimestamp(),
+            "endAt" to event.endAt.toTimestamp(),
             "imageUrl" to event.imageUrl,
             "communityId" to event.communityId,
             "createdBy" to event.createdBy,
-            "createdAt" to event.createdAt,
-            "updatedAt" to event.updatedAt,
+            "createdAt" to event.createdAt.toTimestamp(),
+            "updatedAt" to event.updatedAt.toTimestamp(),
             "isPublished" to event.isPublished
         )
 
@@ -101,11 +102,11 @@ class FirebaseEventRepository(
             "description" to event.description.trim(),
             "category" to event.category.trim(),
             "venue" to event.venue.trim(),
-            "startAt" to event.startAt,
-            "endAt" to event.endAt,
+            "startAt" to event.startAt.toTimestamp(),
+            "endAt" to event.endAt.toTimestamp(),
             "imageUrl" to event.imageUrl,
             "isPublished" to event.isPublished,
-            "updatedAt" to System.currentTimeMillis()
+            "updatedAt" to System.currentTimeMillis().toTimestamp()
         )
 
         docRef.update(updates).await()
@@ -136,41 +137,9 @@ class FirebaseEventRepository(
 
         check(existing.createdBy == uid) { "You do not own this event." }
 
-        docRef.update(mapOf("isPublished" to isPublished, "updatedAt" to System.currentTimeMillis())).await()
+        docRef.update(mapOf("isPublished" to isPublished, "updatedAt" to System.currentTimeMillis().toTimestamp())).await()
         Unit
     }.recoverCatching { throwable ->
         throw Exception(FirebaseErrorMapper.map(throwable))
-    }
-
-    private fun DocumentSnapshot.toEvent(id: String): Event? {
-        if (!exists()) return null
-        val title = getString("title") ?: return null
-        val description = getString("description") ?: return null
-        val category = getString("category") ?: return null
-        val venue = getString("venue") ?: return null
-        val startAt = getLong("startAt") ?: getTimestamp("startAt")?.toInstant()?.toEpochMilli() ?: 0L
-        val endAt = getLong("endAt") ?: getTimestamp("endAt")?.toInstant()?.toEpochMilli() ?: 0L
-        val imageUrl = getString("imageUrl")
-        val communityId = getString("communityId") ?: return null
-        val createdBy = getString("createdBy") ?: return null
-        val createdAt = getLong("createdAt") ?: getTimestamp("createdAt")?.toInstant()?.toEpochMilli() ?: 0L
-        val updatedAt = getLong("updatedAt") ?: getTimestamp("updatedAt")?.toInstant()?.toEpochMilli() ?: 0L
-        val isPublished = getBoolean("isPublished") ?: false
-
-        return Event(
-            id = id,
-            title = title,
-            description = description,
-            category = category,
-            venue = venue,
-            startAt = startAt,
-            endAt = endAt,
-            imageUrl = imageUrl,
-            communityId = communityId,
-            createdBy = createdBy,
-            createdAt = createdAt,
-            updatedAt = updatedAt,
-            isPublished = isPublished
-        )
     }
 }

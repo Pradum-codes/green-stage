@@ -4,6 +4,8 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.greenstage.data.model.Community
 import com.greenstage.data.repository.CommunityRepository
+import com.greenstage.data.source.firebase.FirestoreMapper.toCommunity
+import com.greenstage.data.source.firebase.FirestoreMapper.toTimestamp
 import kotlinx.coroutines.tasks.await
 
 class FirebaseCommunityRepository(
@@ -11,38 +13,21 @@ class FirebaseCommunityRepository(
     private val firestore: FirebaseFirestore
 ) : CommunityRepository {
 
-    override suspend fun getOwnedCommunity(): Result<Community> = runCatching {
-        val uid = firebaseAuth.currentUser?.uid
+    private fun currentUid(): String {
+        return firebaseAuth.currentUser?.uid
+            ?: FirebaseAuth.getInstance().currentUser?.uid
             ?: error("No authenticated user.")
+    }
+
+    override suspend fun getOwnedCommunity(): Result<Community> = runCatching {
+        val uid = currentUid()
 
         val snapshot = firestore.collection("communities").document(uid).get().await()
-        if (!snapshot.exists()) {
-            error("Owned community not found.")
-        }
+        val community = snapshot.toCommunity(uid) ?: error("Owned community not found.")
 
-        val name = snapshot.getString("name") ?: error("Community name missing.")
-        val description = snapshot.getString("description") ?: error("Community description missing.")
-        val category = snapshot.getString("category") ?: error("Community category missing.")
-        val createdBy = snapshot.getString("createdBy") ?: error("Community creator ID missing.")
+        check(community.createdBy == uid) { "Community owner mismatch." }
 
-        check(createdBy == uid) { "Community owner mismatch." }
-
-        val createdAt = snapshot.getLong("createdAt")
-            ?: snapshot.getTimestamp("createdAt")?.toInstant()?.toEpochMilli()
-            ?: System.currentTimeMillis()
-        val updatedAt = snapshot.getLong("updatedAt")
-            ?: snapshot.getTimestamp("updatedAt")?.toInstant()?.toEpochMilli()
-            ?: System.currentTimeMillis()
-
-        Community(
-            id = uid,
-            name = name,
-            description = description,
-            category = category,
-            createdBy = createdBy,
-            createdAt = createdAt,
-            updatedAt = updatedAt
-        )
+        community
     }.recoverCatching { throwable ->
         throw Exception(FirebaseErrorMapper.map(throwable))
     }
@@ -57,26 +42,22 @@ class FirebaseCommunityRepository(
         require(description.isNotBlank()) { "Community description cannot be empty." }
         require(category.isNotBlank()) { "Community category cannot be empty." }
 
-        val uid = firebaseAuth.currentUser?.uid
-            ?: error("No authenticated user.")
+        val uid = currentUid()
 
         check(communityId == uid) { "You can only update your owned community." }
 
         val docRef = firestore.collection("communities").document(uid)
         val snapshot = docRef.get().await()
 
-        if (!snapshot.exists()) {
-            error("Community not found.")
-        }
+        val community = snapshot.toCommunity(uid) ?: error("Community not found.")
 
-        val createdBy = snapshot.getString("createdBy")
-        check(createdBy == uid) { "You do not own this community." }
+        check(community.createdBy == uid) { "You do not own this community." }
 
         val updates = mapOf(
             "name" to name.trim(),
             "description" to description.trim(),
             "category" to category.trim(),
-            "updatedAt" to System.currentTimeMillis()
+            "updatedAt" to System.currentTimeMillis().toTimestamp()
         )
 
         docRef.update(updates).await()

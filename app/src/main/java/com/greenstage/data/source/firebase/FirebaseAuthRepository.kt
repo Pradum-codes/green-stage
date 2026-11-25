@@ -1,7 +1,6 @@
 package com.greenstage.data.source.firebase
 
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.greenstage.data.model.AccountType
 import com.greenstage.data.model.Community
@@ -9,6 +8,9 @@ import com.greenstage.data.model.User
 import com.greenstage.data.repository.AuthRepository
 import com.greenstage.data.repository.AuthState
 import com.greenstage.data.repository.CommunityRegistrationResult
+import com.greenstage.data.source.firebase.FirestoreMapper.toCommunity
+import com.greenstage.data.source.firebase.FirestoreMapper.toTimestamp
+import com.greenstage.data.source.firebase.FirestoreMapper.toUser
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -33,19 +35,19 @@ class FirebaseAuthRepository(
         val uid = firebaseUser.uid
 
         val now = System.currentTimeMillis()
+        val nowTimestamp = now.toTimestamp()
         val userData = mapOf(
             "name" to name.trim(),
             "email" to normalizedEmail,
             "accountType" to "student",
             "interests" to emptyList<String>(),
-            "createdAt" to now,
-            "updatedAt" to now
+            "createdAt" to nowTimestamp,
+            "updatedAt" to nowTimestamp
         )
 
         try {
             firestore.collection("users").document(uid).set(userData).await()
         } catch (e: Exception) {
-            // Attempt cleanup of newly created Auth user if profile creation failed
             runCatching { firebaseUser.delete().await() }
             throw e
         }
@@ -83,14 +85,15 @@ class FirebaseAuthRepository(
         val uid = firebaseUser.uid
 
         val now = System.currentTimeMillis()
+        val nowTimestamp = now.toTimestamp()
 
         val userMap = mapOf(
             "name" to name.trim(),
             "email" to normalizedEmail,
             "accountType" to "admin",
             "interests" to emptyList<String>(),
-            "createdAt" to now,
-            "updatedAt" to now
+            "createdAt" to nowTimestamp,
+            "updatedAt" to nowTimestamp
         )
 
         val communityMap = mapOf(
@@ -98,8 +101,8 @@ class FirebaseAuthRepository(
             "description" to communityDescription.trim(),
             "category" to communityCategory.trim(),
             "createdBy" to uid,
-            "createdAt" to now,
-            "updatedAt" to now
+            "createdAt" to nowTimestamp,
+            "updatedAt" to nowTimestamp
         )
 
         val batch = firestore.batch()
@@ -109,7 +112,6 @@ class FirebaseAuthRepository(
         try {
             batch.commit().await()
         } catch (e: Exception) {
-            // Attempt cleanup of newly created Auth user if Firestore batch write failed
             runCatching { firebaseUser.delete().await() }
             throw e
         }
@@ -235,59 +237,5 @@ class FirebaseAuthRepository(
 
     private fun normalizeEmail(email: String): String {
         return email.trim().lowercase()
-    }
-
-    private fun DocumentSnapshot.toUser(uid: String): User? {
-        if (!exists()) return null
-        val name = getString("name") ?: return null
-        val email = getString("email") ?: return null
-        val accountTypeStr = getString("accountType") ?: return null
-        val accountType = when (accountTypeStr.lowercase()) {
-            "student" -> AccountType.STUDENT
-            "admin" -> AccountType.ADMIN
-            else -> return null
-        }
-        @Suppress("UNCHECKED_CAST")
-        val interests = (get("interests") as? List<*>)?.filterIsInstance<String>() ?: emptyList()
-        val createdAt = getLong("createdAt")
-            ?: getTimestamp("createdAt")?.toInstant()?.toEpochMilli()
-            ?: System.currentTimeMillis()
-        val updatedAt = getLong("updatedAt")
-            ?: getTimestamp("updatedAt")?.toInstant()?.toEpochMilli()
-            ?: System.currentTimeMillis()
-
-        return User(
-            id = uid,
-            name = name,
-            email = email,
-            accountType = accountType,
-            interests = interests,
-            createdAt = createdAt,
-            updatedAt = updatedAt
-        )
-    }
-
-    private fun DocumentSnapshot.toCommunity(communityId: String): Community? {
-        if (!exists()) return null
-        val name = getString("name") ?: return null
-        val description = getString("description") ?: return null
-        val category = getString("category") ?: return null
-        val createdBy = getString("createdBy") ?: return null
-        val createdAt = getLong("createdAt")
-            ?: getTimestamp("createdAt")?.toInstant()?.toEpochMilli()
-            ?: System.currentTimeMillis()
-        val updatedAt = getLong("updatedAt")
-            ?: getTimestamp("updatedAt")?.toInstant()?.toEpochMilli()
-            ?: System.currentTimeMillis()
-
-        return Community(
-            id = communityId,
-            name = name,
-            description = description,
-            category = category,
-            createdBy = createdBy,
-            createdAt = createdAt,
-            updatedAt = updatedAt
-        )
     }
 }
