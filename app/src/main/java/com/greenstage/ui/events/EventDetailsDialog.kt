@@ -17,9 +17,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -51,6 +51,7 @@ import com.greenstage.app.ui.theme.Secondary
 import com.greenstage.app.ui.theme.SoftYellow
 import com.greenstage.app.ui.theme.Surface
 import com.greenstage.app.ui.theme.SurfaceCard
+import com.greenstage.ui.components.OffsetShadowCard
 import com.greenstage.ui.components.CategoryChip
 import com.greenstage.ui.components.ErrorState
 import com.greenstage.ui.components.LoadingIndicator
@@ -105,11 +106,11 @@ fun EventDetailsDialog(
                         onClick = onDismissRequest,
                         modifier = Modifier.size(32.dp)
                     ) {
-                        Text(
-                            text = "✕",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = OnSurfaceCard
+                        Icon(
+                            painter = painterResource(R.drawable.xmark_solid_full),
+                            contentDescription = "Close",
+                            modifier = Modifier.size(16.dp),
+                            tint = OnSurfaceCard
                         )
                     }
                 }
@@ -140,10 +141,9 @@ fun EventDetailsDialog(
                             val event = state.event
                             val cardShape = RoundedCornerShape(8.dp)
 
-                            Card(
+                            OffsetShadowCard(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .shadow(4.dp, cardShape)
                                     .border(2.dp, Outline, cardShape),
                                 shape = cardShape,
                                 colors = CardDefaults.cardColors(containerColor = SurfaceCard)
@@ -183,10 +183,9 @@ fun EventDetailsDialog(
                                 )
                             }
 
-                            Card(
+                            OffsetShadowCard(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .shadow(4.dp, cardShape)
                                     .border(2.dp, Outline, cardShape),
                                 shape = cardShape,
                                 colors = CardDefaults.cardColors(containerColor = SurfaceCard)
@@ -196,7 +195,18 @@ fun EventDetailsDialog(
                                     verticalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
                                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                        Text("⌖  Venue", style = MaterialTheme.typography.labelMedium, color = OnSurfaceVariant)
+                                        Row(
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(
+                                                painter = painterResource(R.drawable.location_dot_solid_full),
+                                                contentDescription = null,
+                                                modifier = Modifier.size(14.dp),
+                                                tint = OnSurfaceVariant
+                                            )
+                                            Text("Venue", style = MaterialTheme.typography.labelMedium, color = OnSurfaceVariant)
+                                        }
                                         Text(event.venue, style = MaterialTheme.typography.bodyLarge, color = OnSurfaceCard)
                                     }
                                     HorizontalDivider(thickness = 2.dp, color = OutlineVariant)
@@ -274,10 +284,24 @@ fun EventDetailsDialog(
                                 contentColor = OnSurfaceCard
                             )
                         ) {
-                            Text(
-                                if (state.isBookmarked) "▮  Bookmarked" else "▯  Bookmark",
-                                fontWeight = FontWeight.Bold
-                            )
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    painter = painterResource(
+                                        if (state.isBookmarked) R.drawable.bookmark_solid_full
+                                        else R.drawable.bookmark_regular_full
+                                    ),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                    tint = OnSurfaceCard
+                                )
+                                Text(
+                                    if (state.isBookmarked) "Bookmarked" else "Bookmark",
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
 
                         Button(
@@ -294,10 +318,23 @@ fun EventDetailsDialog(
                                 contentColor = if (state.isRegistered) OnSecondary else OnPrimary
                             )
                         ) {
-                            Text(
-                                if (state.isRegistered) "✓  Registered" else "Register",
-                                fontWeight = FontWeight.Bold
-                            )
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                if (state.isRegistered) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.check_solid_full),
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp),
+                                        tint = OnSecondary
+                                    )
+                                }
+                                Text(
+                                    if (state.isRegistered) "Registered" else "Register",
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
                     }
                 }

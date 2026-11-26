@@ -16,7 +16,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -29,7 +28,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
@@ -48,6 +46,7 @@ import com.greenstage.app.ui.theme.Secondary
 import com.greenstage.app.ui.theme.SoftYellow
 import com.greenstage.app.ui.theme.Surface
 import com.greenstage.app.ui.theme.SurfaceCard
+import com.greenstage.ui.components.OffsetShadowCard
 import com.greenstage.ui.components.CategoryChip
 import com.greenstage.ui.components.ErrorState
 import com.greenstage.ui.components.LoadingIndicator
@@ -107,10 +106,9 @@ fun EventDetailsBottomSheet(
                         val event = state.event
                         val shape = RoundedCornerShape(8.dp)
 
-                        Card(
+                        OffsetShadowCard(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .shadow(4.dp, shape)
                                 .border(2.dp, Outline, shape),
                             shape = shape,
                             colors = CardDefaults.cardColors(containerColor = SurfaceCard)
@@ -150,10 +148,9 @@ fun EventDetailsBottomSheet(
                             )
                         }
 
-                        Card(
+                        OffsetShadowCard(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .shadow(4.dp, shape)
                                 .border(2.dp, Outline, shape),
                             shape = shape,
                             colors = CardDefaults.cardColors(containerColor = SurfaceCard)

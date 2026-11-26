@@ -11,9 +11,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -32,6 +31,7 @@ import com.greenstage.ui.components.EmptyState
 import com.greenstage.ui.components.ErrorState
 import com.greenstage.ui.components.EventCard
 import com.greenstage.ui.components.LoadingIndicator
+import com.greenstage.ui.components.OffsetShadowCard
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -78,11 +78,11 @@ fun DashboardScreen(
                         .padding(paddingValues)
                 ) {
                     // Community Info Card
-                    Card(
+                    OffsetShadowCard(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(16.dp),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                        shape = RoundedCornerShape(8.dp)
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
                             Row(

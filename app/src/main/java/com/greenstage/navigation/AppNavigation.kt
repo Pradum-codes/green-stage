@@ -122,15 +122,7 @@ fun AppNavigation(
         startDestination = Routes.LOADING
     ) {
         composable(Routes.LOADING) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text("Loading Screen")
-            }
+            com.greenstage.ui.components.SplashScreen()
         }
 
         authNavigation(

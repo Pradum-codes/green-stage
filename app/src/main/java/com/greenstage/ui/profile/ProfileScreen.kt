@@ -10,14 +10,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -28,8 +28,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.greenstage.app.R
 import com.greenstage.app.ui.theme.OnSoftCoral
 import com.greenstage.app.ui.theme.OnSurfaceCard
 import com.greenstage.app.ui.theme.OnSurfaceVariant
@@ -41,6 +43,7 @@ import com.greenstage.app.ui.theme.Surface
 import com.greenstage.app.ui.theme.SurfaceCard
 import com.greenstage.ui.components.ErrorState
 import com.greenstage.ui.components.LoadingIndicator
+import com.greenstage.ui.components.OffsetShadowCard
 import com.greenstage.ui.home.ScreenHeading
 
 @Composable
@@ -83,10 +86,9 @@ fun ProfileScreen(
                     ScreenHeading(title = "Student Profile")
 
                     val shape = RoundedCornerShape(8.dp)
-                    Card(
+                    OffsetShadowCard(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .shadow(4.dp, shape)
                             .border(2.dp, Outline, shape),
                         shape = shape,
                         colors = CardDefaults.cardColors(containerColor = SurfaceCard)
@@ -157,7 +159,18 @@ fun ProfileScreen(
                             contentColor = OnSoftCoral
                         )
                     ) {
-                        Text("↪  Sign Out", fontWeight = FontWeight.Bold)
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.left_long_solid_full),
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = OnSoftCoral
+                            )
+                            Text("Sign Out", fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }
