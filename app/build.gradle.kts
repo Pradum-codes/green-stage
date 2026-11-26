@@ -57,6 +57,7 @@ dependencies {
 
     // NAVIGATION
     implementation(libs.androidx.navigation.compose)
+    implementation(libs.coil.compose)
 
     // COROUTINES
     implementation(libs.kotlinx.coroutines.play.services)

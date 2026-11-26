@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.greenstage.data.repository.BookmarkRepository
 import com.greenstage.data.repository.EventRepository
 import com.greenstage.data.repository.RegistrationRepository
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -32,14 +33,13 @@ class EventViewModel(
             }
             val event = eventResult.getOrThrow()
 
-            val regResult = registrationRepository.isRegistered(eventId)
-            val isRegistered = regResult.getOrDefault(false)
+            val isRegisteredDeferred = async { registrationRepository.isRegistered(eventId).getOrDefault(false) }
+            val isBookmarkedDeferred = async { bookmarkRepository.isBookmarked(eventId).getOrDefault(false) }
+            val countDeferred = async { registrationRepository.getRegistrationCount(eventId).getOrDefault(0L) }
 
-            val bookmarkResult = bookmarkRepository.isBookmarked(eventId)
-            val isBookmarked = bookmarkResult.getOrDefault(false)
-
-            val countResult = registrationRepository.getRegistrationCount(eventId)
-            val registrationCount = countResult.getOrDefault(0L)
+            val isRegistered = isRegisteredDeferred.await()
+            val isBookmarked = isBookmarkedDeferred.await()
+            val registrationCount = countDeferred.await()
 
             _uiState.value = EventUiState.Success(
                 event = event,
