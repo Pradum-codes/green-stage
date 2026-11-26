@@ -1,0 +1,295 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // -----------------------------------------------------------------------
+    // Authentication and ownership helpers
+    // -----------------------------------------------------------------------
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function userPath(uid) {
+      return /databases/$(database)/documents/users/$(uid);
+    }
+
+    function communityPath(uid) {
+      return /databases/$(database)/documents/communities/$(uid);
+    }
+
+    function eventPath(eventId) {
+      return /databases/$(database)/documents/events/$(eventId);
+    }
+
+    function hasStudentProfile(uid) {
+      return isSelf(uid)
+        && exists(userPath(uid))
+        && get(userPath(uid)).data.accountType == 'student';
+    }
+
+    function hasAdminProfile(uid) {
+      return isSelf(uid)
+        && exists(userPath(uid))
+        && get(userPath(uid)).data.accountType == 'admin';
+    }
+
+    // Community document IDs are the owning admin's Firebase Auth UID.
+    function ownsCommunity(uid) {
+      return hasAdminProfile(uid)
+        && exists(communityPath(uid))
+        && get(communityPath(uid)).data.createdBy == uid;
+    }
+
+    function ownsEvent(eventData) {
+      return signedIn()
+        && eventData.communityId == request.auth.uid
+        && ownsCommunity(request.auth.uid);
+    }
+
+    function isAdminForEvent(eventId) {
+      return signedIn()
+        && eventId is string
+        && exists(eventPath(eventId))
+        && get(eventPath(eventId)).data.communityId == request.auth.uid
+        && get(eventPath(eventId)).data.createdBy == request.auth.uid
+        && ownsCommunity(request.auth.uid);
+    }
+
+    function validTimestamp(value) {
+      return value is timestamp;
+    }
+
+    // -----------------------------------------------------------------------
+    // User profiles
+    // -----------------------------------------------------------------------
+
+    match /users/{uid} {
+      // A user can read only their own profile. This also allows the auth-state
+      // observer to distinguish a missing profile from a denied profile read.
+      allow get: if isSelf(uid);
+      allow list: if false;
+
+      // Student registration creates only a student profile.
+      // Admin registration creates the admin profile and community atomically;
+      // getAfter() verifies the matching community in that same batch.
+      allow create: if isSelf(uid)
+        && request.resource.data.keys().hasAll([
+          'name', 'email', 'accountType', 'interests', 'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'name', 'email', 'accountType', 'interests', 'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.email is string
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.interests is list
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp
+        && (
+          (
+            request.resource.data.accountType == 'student'
+            && !existsAfter(communityPath(uid))
+          )
+          ||
+          (
+            request.resource.data.accountType == 'admin'
+            && existsAfter(communityPath(uid))
+            && getAfter(communityPath(uid)).data.createdBy == uid
+          )
+        );
+
+      // Account type, email, and creation time are immutable after registration.
+      allow update: if isSelf(uid)
+        && request.resource.data.accountType == resource.data.accountType
+        && request.resource.data.email == resource.data.email
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['name', 'interests', 'updatedAt'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.interests is list
+        && request.resource.data.updatedAt is timestamp;
+
+      allow delete: if false;
+
+      // ---------------------------------------------------------------------
+      // Student registrations
+      // ---------------------------------------------------------------------
+
+      match /registrations/{eventId} {
+        // Students can access their own registrations. Community admins may
+        // read registrations only when the referenced event belongs to them.
+        allow get, list: if hasStudentProfile(uid)
+          || (
+            signedIn()
+            && resource.data.keys().hasAll(['eventId'])
+            && resource.data.eventId == eventId
+            && isAdminForEvent(resource.data.eventId)
+          );
+
+        allow create: if hasStudentProfile(uid)
+          && request.resource.data.keys().hasAll(['eventId', 'registeredAt'])
+          && request.resource.data.keys().hasOnly(['eventId', 'registeredAt'])
+          && request.resource.data.eventId == eventId
+          && request.resource.data.registeredAt is timestamp
+          && exists(eventPath(eventId))
+          && get(eventPath(eventId)).data.isPublished == true;
+
+        allow update: if false;
+
+        allow delete: if hasStudentProfile(uid);
+      }
+
+      // ---------------------------------------------------------------------
+      // Student bookmarks
+      // ---------------------------------------------------------------------
+
+      match /bookmarks/{eventId} {
+        allow read: if hasStudentProfile(uid);
+
+        allow create: if hasStudentProfile(uid)
+          && request.resource.data.keys().hasAll(['savedAt'])
+          && request.resource.data.keys().hasOnly(['savedAt'])
+          && request.resource.data.savedAt is timestamp
+          && exists(eventPath(eventId))
+          && get(eventPath(eventId)).data.isPublished == true;
+
+        allow update: if false;
+        allow delete: if hasStudentProfile(uid);
+      }
+    }
+
+    // -----------------------------------------------------------------------
+    // Communities
+    // -----------------------------------------------------------------------
+
+    match /communities/{communityId} {
+      // The initial community is created in the same batch as its admin profile.
+      allow create: if isSelf(communityId)
+        && getAfter(userPath(communityId)).data.accountType == 'admin'
+        && request.resource.data.keys().hasAll([
+          'name', 'description', 'category', 'createdBy', 'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'name', 'description', 'category', 'createdBy', 'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.description is string
+        && request.resource.data.category is string
+        && request.resource.data.createdBy == communityId
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp;
+
+      allow get: if isSelf(communityId)
+        && hasAdminProfile(communityId)
+        && resource.data.createdBy == communityId;
+      allow list: if false;
+
+      allow update: if isSelf(communityId)
+        && hasAdminProfile(communityId)
+        && resource.data.createdBy == communityId
+        && request.resource.data.createdBy == resource.data.createdBy
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['name', 'description', 'category', 'updatedAt'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.description is string
+        && request.resource.data.category is string
+        && request.resource.data.updatedAt is timestamp;
+
+      // Community deletion is deliberately disabled for this project scope.
+      allow delete: if false;
+    }
+
+    // -----------------------------------------------------------------------
+    // Events
+    // -----------------------------------------------------------------------
+
+    match /events/{eventId} {
+      // Students can read published events. Admins can also read unpublished
+      // events belonging to their own community.
+      allow get, list: if signedIn()
+        && (
+          resource.data.isPublished == true
+          || ownsEvent(resource.data)
+        );
+
+      allow create: if signedIn()
+        && ownsCommunity(request.auth.uid)
+        && request.resource.data.keys().hasAll([
+          'title', 'description', 'category', 'venue', 'startAt', 'endAt',
+          'imageUrl', 'communityId', 'createdBy', 'createdAt', 'updatedAt',
+          'isPublished'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'title', 'description', 'category', 'venue', 'startAt', 'endAt',
+          'imageUrl', 'communityId', 'createdBy', 'createdAt', 'updatedAt',
+          'isPublished'
+        ])
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.description is string
+        && request.resource.data.category is string
+        && request.resource.data.venue is string
+        && request.resource.data.startAt is timestamp
+        && request.resource.data.endAt is timestamp
+        && request.resource.data.endAt > request.resource.data.startAt
+        && (
+          request.resource.data.imageUrl == null
+          || request.resource.data.imageUrl is string
+        )
+        && request.resource.data.communityId == request.auth.uid
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp
+        && request.resource.data.isPublished is bool;
+
+      allow update: if ownsEvent(resource.data)
+        && request.resource.data.communityId == resource.data.communityId
+        && request.resource.data.createdBy == resource.data.createdBy
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly([
+            'title', 'description', 'category', 'venue', 'startAt', 'endAt',
+            'imageUrl', 'isPublished', 'updatedAt'
+          ])
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.description is string
+        && request.resource.data.category is string
+        && request.resource.data.venue is string
+        && request.resource.data.startAt is timestamp
+        && request.resource.data.endAt is timestamp
+        && request.resource.data.endAt > request.resource.data.startAt
+        && (
+          request.resource.data.imageUrl == null
+          || request.resource.data.imageUrl is string
+        )
+        && request.resource.data.isPublished is bool
+        && request.resource.data.updatedAt is timestamp;
+
+      allow delete: if ownsEvent(resource.data);
+    }
+
+    // -----------------------------------------------------------------------
+    // Collection-group registration reads
+    // -----------------------------------------------------------------------
+    // This recursive match is required for collectionGroup("registrations").
+    // It grants admins read access only to documents whose event belongs to
+    // their own community. It does not grant admin create/update/delete access.
+    match /{documentPath=**}/registrations/{registrationId} {
+      allow get, list: if signedIn()
+        && resource.data.keys().hasAll(['eventId'])
+        && isAdminForEvent(resource.data.eventId);
+    }
+  }
+}
