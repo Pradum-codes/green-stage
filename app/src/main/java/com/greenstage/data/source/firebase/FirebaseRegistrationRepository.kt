@@ -26,29 +26,17 @@ class FirebaseRegistrationRepository(
         require(eventId.isNotBlank()) { "Event ID cannot be empty." }
         val uid = currentUid()
 
-        firestore.runTransaction { transaction ->
-            val eventRef = firestore.collection("events").document(eventId)
-            val eventDoc = transaction.get(eventRef)
-            check(eventDoc.exists()) { "Event not found." }
+        val regRef = firestore.collection("users")
+            .document(uid)
+            .collection("registrations")
+            .document(eventId)
 
-            val isPublished = eventDoc.getBoolean("isPublished") ?: false
-            check(isPublished) { "You cannot register for an unpublished event." }
+        val regData = mapOf(
+            "eventId" to eventId,
+            "registeredAt" to System.currentTimeMillis().toTimestamp()
+        )
 
-            val regRef = firestore.collection("users")
-                .document(uid)
-                .collection("registrations")
-                .document(eventId)
-
-            val regDoc = transaction.get(regRef)
-            check(!regDoc.exists()) { "You are already registered for this event." }
-
-            val regData = mapOf(
-                "eventId" to eventId,
-                "registeredAt" to System.currentTimeMillis().toTimestamp()
-            )
-            transaction.set(regRef, regData)
-        }.await()
-
+        regRef.set(regData).await()
         Unit
     }.recoverCatching { throwable ->
         throw Exception(FirebaseErrorMapper.map(throwable))
@@ -108,13 +96,6 @@ class FirebaseRegistrationRepository(
         eventId: String
     ): Result<Long> = runCatching {
         require(eventId.isNotBlank()) { "Event ID cannot be empty." }
-        val uid = currentUid()
-
-        val eventDoc = firestore.collection("events").document(eventId).get().await()
-        check(eventDoc.exists()) { "Event not found." }
-
-        val communityId = eventDoc.getString("communityId") ?: error("Event community ID missing.")
-        check(communityId == uid) { "Only the event owner can view its registration count." }
 
         val aggregateQuery = firestore.collectionGroup("registrations")
             .whereEqualTo("eventId", eventId)
@@ -122,7 +103,7 @@ class FirebaseRegistrationRepository(
 
         val snapshot = aggregateQuery.get(AggregateSource.SERVER).await()
         snapshot.count
-    }.recoverCatching { throwable ->
-        throw Exception(FirebaseErrorMapper.map(throwable))
+    }.recoverCatching {
+        0L
     }
 }
