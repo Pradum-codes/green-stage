@@ -106,4 +106,34 @@ class FirebaseRegistrationRepository(
     }.recoverCatching {
         0L
     }
+
+    override suspend fun getEventParticipants(
+        eventId: String
+    ): Result<List<com.greenstage.ui.events.ParticipantInfo>> = runCatching {
+        require(eventId.isNotBlank()) { "Event ID cannot be empty." }
+
+        val snapshot = firestore.collectionGroup("registrations")
+            .whereEqualTo("eventId", eventId)
+            .get()
+            .await()
+
+        val list = mutableListOf<com.greenstage.ui.events.ParticipantInfo>()
+        for (doc in snapshot.documents) {
+            val parentUserDoc = doc.reference.parent.parent?.get()?.await()
+            val name = parentUserDoc?.getString("name") ?: "Student"
+            val email = parentUserDoc?.getString("email") ?: ""
+            val regAt = doc.getTimestamp("registeredAt")?.toDate()?.time ?: System.currentTimeMillis()
+            list.add(
+                com.greenstage.ui.events.ParticipantInfo(
+                    userId = parentUserDoc?.id ?: doc.id,
+                    name = name,
+                    email = email,
+                    registeredAt = regAt
+                )
+            )
+        }
+        list
+    }.recoverCatching {
+        emptyList()
+    }
 }

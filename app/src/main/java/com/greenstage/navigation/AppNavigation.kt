@@ -141,6 +141,7 @@ fun AppNavigation(
 
         adminNavigation(
             authRepository = authRepository,
+            userRepository = userRepository,
             communityRepository = communityRepository,
             eventRepository = eventRepository,
             registrationRepository = registrationRepository,

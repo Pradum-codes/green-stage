@@ -19,15 +19,17 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
@@ -38,14 +40,16 @@ import com.greenstage.app.ui.theme.OnSurfaceCard
 import com.greenstage.app.ui.theme.OnSurfaceVariant
 import com.greenstage.app.ui.theme.Outline
 import com.greenstage.app.ui.theme.OutlineVariant
+import com.greenstage.app.ui.theme.PowderBlue
 import com.greenstage.app.ui.theme.Primary
 import com.greenstage.app.ui.theme.Secondary
+import com.greenstage.app.ui.theme.SoftYellow
 import com.greenstage.app.ui.theme.Surface
 import com.greenstage.app.ui.theme.SurfaceCard
-import com.greenstage.ui.components.OffsetShadowCard
 import com.greenstage.ui.components.CategoryChip
 import com.greenstage.ui.components.ErrorState
 import com.greenstage.ui.components.LoadingIndicator
+import com.greenstage.ui.components.OffsetShadowCard
 import com.greenstage.ui.components.StudentHeader
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -55,6 +59,7 @@ fun EventDetailsScreen(
     eventId: String,
     viewModel: EventViewModel,
     onBack: () -> Unit,
+    isAdmin: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -67,57 +72,59 @@ fun EventDetailsScreen(
         containerColor = Surface,
         topBar = { StudentHeader(title = "Event Details", onBack = onBack) },
         bottomBar = {
-            val state = uiState as? EventUiState.Success
-            if (state != null) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(SurfaceCard)
-                        .border(width = 2.dp, color = Outline)
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Button(
-                        onClick = {
-                            if (state.isBookmarked) viewModel.removeBookmark(eventId)
-                            else viewModel.addBookmark(eventId)
-                        },
-                        enabled = !state.isActionLoading,
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(6.dp),
-                        border = androidx.compose.foundation.BorderStroke(2.dp, Outline),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (state.isBookmarked) {
-                                com.greenstage.app.ui.theme.SoftYellow
-                            } else {
-                                SurfaceCard
+            if (!isAdmin) {
+                val state = uiState as? EventUiState.Success
+                if (state != null) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(SurfaceCard)
+                            .border(width = 2.dp, color = Outline)
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                if (state.isBookmarked) viewModel.removeBookmark(eventId)
+                                else viewModel.addBookmark(eventId)
                             },
-                            contentColor = OnSurfaceCard
-                        )
-                    ) {
-                        Text(
-                            if (state.isBookmarked) "▮  Bookmarked" else "▯  Bookmark",
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                    Button(
-                        onClick = {
-                            if (state.isRegistered) viewModel.cancelRegistration(eventId)
-                            else viewModel.registerForEvent(eventId)
-                        },
-                        enabled = !state.isActionLoading,
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(6.dp),
-                        border = androidx.compose.foundation.BorderStroke(2.dp, Outline),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (state.isRegistered) Secondary else Primary,
-                            contentColor = if (state.isRegistered) OnSecondary else OnPrimary
-                        )
-                    ) {
-                        Text(
-                            if (state.isRegistered) "✓  Registered" else "Register",
-                            fontWeight = FontWeight.Bold
-                        )
+                            enabled = !state.isActionLoading,
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(6.dp),
+                            border = androidx.compose.foundation.BorderStroke(2.dp, Outline),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (state.isBookmarked) {
+                                    SoftYellow
+                                } else {
+                                    SurfaceCard
+                                },
+                                contentColor = OnSurfaceCard
+                            )
+                        ) {
+                            Text(
+                                if (state.isBookmarked) "▮  Bookmarked" else "▯  Bookmark",
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Button(
+                            onClick = {
+                                if (state.isRegistered) viewModel.cancelRegistration(eventId)
+                                else viewModel.registerForEvent(eventId)
+                            },
+                            enabled = !state.isActionLoading,
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(6.dp),
+                            border = androidx.compose.foundation.BorderStroke(2.dp, Outline),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (state.isRegistered) Secondary else Primary,
+                                contentColor = if (state.isRegistered) OnSecondary else OnPrimary
+                            )
+                        ) {
+                            Text(
+                                if (state.isRegistered) "✓  Registered" else "Register",
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                 }
             }
@@ -235,6 +242,59 @@ fun EventDetailsScreen(
                             color = MaterialTheme.colorScheme.onSurface
                         )
                     }
+
+                    // Admin View: Participants / Attendees Section
+                    if (isAdmin) {
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Event Participants",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Surface(
+                                    color = PowderBlue,
+                                    shape = RoundedCornerShape(50),
+                                    modifier = Modifier.border(2.dp, Outline, RoundedCornerShape(50))
+                                ) {
+                                    Text(
+                                        text = "${state.participants.size} Registered",
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = OnSurfaceCard,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+
+                            if (state.participants.isEmpty()) {
+                                OffsetShadowCard(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .border(2.dp, Outline, shape),
+                                    shape = shape,
+                                    colors = CardDefaults.cardColors(containerColor = SurfaceCard)
+                                ) {
+                                    Text(
+                                        text = "No participants registered yet for this event.",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = OnSurfaceVariant,
+                                        modifier = Modifier.padding(16.dp)
+                                    )
+                                }
+                            } else {
+                                state.participants.forEach { participant ->
+                                    ParticipantItemCard(participant = participant)
+                                }
+                            }
+                        }
+                    }
+
                     state.actionError?.let { errorMsg ->
                         Text(
                             text = errorMsg,
@@ -243,6 +303,62 @@ fun EventDetailsScreen(
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ParticipantItemCard(
+    participant: ParticipantInfo,
+    modifier: Modifier = Modifier
+) {
+    val shape = RoundedCornerShape(8.dp)
+    val dateFormat = SimpleDateFormat("MMM d, yyyy • h:mm a", LocalConfiguration.current.locales[0])
+    OffsetShadowCard(
+        modifier = modifier
+            .fillMaxWidth()
+            .border(2.dp, Outline, shape),
+        shape = shape,
+        colors = CardDefaults.cardColors(containerColor = SurfaceCard)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = participant.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = OnSurfaceCard
+                )
+                Text(
+                    text = participant.email,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = OnSurfaceVariant
+                )
+                Text(
+                    text = "Registered: ${dateFormat.format(Date(participant.registeredAt))}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = OnSurfaceVariant
+                )
+            }
+            Surface(
+                color = SoftYellow,
+                shape = RoundedCornerShape(50),
+                modifier = Modifier.border(2.dp, Outline, RoundedCornerShape(50))
+            ) {
+                Text(
+                    text = "ATTENDEE",
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = OnSurfaceCard,
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
     }

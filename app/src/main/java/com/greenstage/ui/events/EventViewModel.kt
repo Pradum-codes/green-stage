@@ -36,16 +36,19 @@ class EventViewModel(
             val isRegisteredDeferred = async { registrationRepository.isRegistered(eventId).getOrDefault(false) }
             val isBookmarkedDeferred = async { bookmarkRepository.isBookmarked(eventId).getOrDefault(false) }
             val countDeferred = async { registrationRepository.getRegistrationCount(eventId).getOrDefault(0L) }
+            val participantsDeferred = async { registrationRepository.getEventParticipants(eventId).getOrDefault(emptyList()) }
 
             val isRegistered = isRegisteredDeferred.await()
             val isBookmarked = isBookmarkedDeferred.await()
             val registrationCount = countDeferred.await()
+            val participants = participantsDeferred.await()
 
             _uiState.value = EventUiState.Success(
                 event = event,
                 isRegistered = isRegistered,
                 isBookmarked = isBookmarked,
-                registrationCount = registrationCount
+                registrationCount = registrationCount,
+                participants = participants
             )
         }
     }

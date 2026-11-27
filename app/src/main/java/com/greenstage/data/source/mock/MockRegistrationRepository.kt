@@ -101,6 +101,29 @@ internal class MockRegistrationRepository(
         }
     }
 
+    override suspend fun getEventParticipants(
+        eventId: String
+    ): Result<List<com.greenstage.ui.events.ParticipantInfo>> = runCatching {
+        synchronized(dataSource.lock) {
+            val list = mutableListOf<com.greenstage.ui.events.ParticipantInfo>()
+            dataSource.registrations.forEach { (userId, regMap) ->
+                val reg = regMap[eventId]
+                if (reg != null) {
+                    val user = dataSource.users[userId]
+                    list.add(
+                        com.greenstage.ui.events.ParticipantInfo(
+                            userId = userId,
+                            name = user?.name ?: "Student User",
+                            email = user?.email ?: "student@greenstage.edu",
+                            registeredAt = reg.registeredAt
+                        )
+                    )
+                }
+            }
+            list
+        }
+    }
+
     private fun requireStudent(): String {
         val userId = dataSource.currentUserId
             ?: error("No authenticated user.")

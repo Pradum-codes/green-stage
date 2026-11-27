@@ -72,8 +72,13 @@ fun HomeScreen(
 }
 
 @Composable
-fun ScreenHeading(title: String, subtitle: String? = null) {
+fun ScreenHeading(
+    title: String,
+    subtitle: String? = null,
+    modifier: Modifier = Modifier
+) {
     androidx.compose.foundation.layout.Column(
+        modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Text(

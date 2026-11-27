@@ -22,4 +22,8 @@ interface RegistrationRepository {
     suspend fun getRegistrationCount(
         eventId: String
     ): Result<Long>
+
+    suspend fun getEventParticipants(
+        eventId: String
+    ): Result<List<com.greenstage.ui.events.ParticipantInfo>>
 }
