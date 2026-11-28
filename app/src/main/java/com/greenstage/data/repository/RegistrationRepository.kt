@@ -1,6 +1,7 @@
 package com.greenstage.data.repository
 
 import com.greenstage.data.model.Registration
+import com.greenstage.data.model.ParticipantInfo
 
 interface RegistrationRepository {
 
@@ -22,4 +23,8 @@ interface RegistrationRepository {
     suspend fun getRegistrationCount(
         eventId: String
     ): Result<Long>
+
+    suspend fun getEventParticipants(
+        eventId: String
+    ): Result<List<ParticipantInfo>>
 }

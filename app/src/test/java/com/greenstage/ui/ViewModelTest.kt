@@ -15,6 +15,10 @@ import com.greenstage.ui.events.EventUiState
 import com.greenstage.ui.events.EventViewModel
 import com.greenstage.ui.home.HomeUiState
 import com.greenstage.ui.home.HomeViewModel
+import com.greenstage.ui.profile.ProfileUiState
+import com.greenstage.ui.profile.ProfileViewModel
+import com.greenstage.ui.saved.SavedEventsUiState
+import com.greenstage.ui.saved.SavedEventsViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -248,5 +252,62 @@ class ViewModelTest {
         val state = viewModel.uiState.value
         assertTrue(state is EventUiState.Success)
         assertEquals("Compose In Depth", (state as EventUiState.Success).event.title)
+    }
+
+    @Test
+    fun savedEventsViewModel_loadsSavedAndRegisteredEvents() = runTest {
+        val adminReg = authRepository.registerCommunityAdmin(
+            name = "Admin", email = "admin@example.com", password = "password123",
+            communityName = "Tech Club", communityDescription = "Desc", communityCategory = "Tech"
+        ).getOrThrow()
+
+        val event = com.greenstage.data.model.Event(
+            id = "event-saved-1",
+            title = "Green Tech",
+            description = "Sust event",
+            category = "Sustainability",
+            venue = "Auditorium",
+            startAt = 1000L,
+            endAt = 2000L,
+            imageUrl = null,
+            communityId = adminReg.community.id,
+            createdBy = adminReg.user.id,
+            createdAt = 500L,
+            updatedAt = 500L,
+            isPublished = true
+        )
+        eventRepository.createEvent(event)
+
+        authRepository.registerStudent(
+            name = "Student", email = "student@example.com", password = "password123"
+        ).getOrThrow()
+
+        bookmarkRepository.addBookmark("event-saved-1")
+        registrationRepository.registerForEvent("event-saved-1")
+
+        val viewModel = SavedEventsViewModel(bookmarkRepository, registrationRepository, eventRepository)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertTrue(state is SavedEventsUiState.Success)
+        val successState = state as SavedEventsUiState.Success
+        assertEquals(1, successState.bookmarkedEvents.size)
+        assertEquals(1, successState.registeredEvents.size)
+    }
+
+    @Test
+    fun profileViewModel_loadsUserProfile() = runTest {
+        authRepository.registerStudent(
+            name = "Maya Lin", email = "maya.lin@greenstage.edu", password = "password123"
+        ).getOrThrow()
+
+        val userRepository = com.greenstage.data.source.mock.MockUserRepository(dataSource)
+        val viewModel = ProfileViewModel(userRepository, authRepository)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertTrue(state is ProfileUiState.Success)
+        assertEquals("Maya Lin", (state as ProfileUiState.Success).user.name)
+        assertEquals("maya.lin@greenstage.edu", state.user.email)
     }
 }

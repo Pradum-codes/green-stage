@@ -1,6 +1,7 @@
 package com.greenstage.data.source.mock
 
 import com.greenstage.data.model.AccountType
+import com.greenstage.data.model.ParticipantInfo
 import com.greenstage.data.model.Registration
 import com.greenstage.data.repository.RegistrationRepository
 
@@ -98,6 +99,29 @@ internal class MockRegistrationRepository(
             dataSource.registrations.values.count {
                 it.containsKey(eventId)
             }.toLong()
+        }
+    }
+
+    override suspend fun getEventParticipants(
+        eventId: String
+    ): Result<List<ParticipantInfo>> = runCatching {
+        synchronized(dataSource.lock) {
+            val list = mutableListOf<ParticipantInfo>()
+            dataSource.registrations.forEach { (userId, regMap) ->
+                val reg = regMap[eventId]
+                if (reg != null) {
+                    val user = dataSource.users[userId]
+                    list.add(
+                        ParticipantInfo(
+                            userId = userId,
+                            name = user?.name ?: "Student User",
+                            email = user?.email ?: "student@greenstage.edu",
+                            registeredAt = reg.registeredAt
+                        )
+                    )
+                }
+            }
+            list
         }
     }
 

@@ -91,9 +91,9 @@ class GreenStageApplication : Application() {
             "GreenStageApplication onCreate() executed"
         )
 
-        if (BuildConfig.DEBUG) {
-            firebaseAuth.useEmulator("127.0.0.1", 9099)
-            firebaseFirestore.useEmulator("127.0.0.1", 8080)
-        }
+//        if (BuildConfig.DEBUG) {
+//            firebaseAuth.useEmulator("127.0.0.1", 9099)
+//            firebaseFirestore.useEmulator("127.0.0.1", 8080)
+//        }
     }
 }
