@@ -47,6 +47,8 @@ import com.greenstage.app.ui.theme.Outline
 import com.greenstage.app.ui.theme.Primary
 import com.greenstage.app.ui.theme.SoftCoral
 import com.greenstage.app.ui.theme.SoftYellow
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import com.greenstage.app.ui.theme.Surface
 import com.greenstage.app.ui.theme.SurfaceCard
 import com.greenstage.data.model.Event
@@ -59,6 +61,7 @@ import com.greenstage.ui.home.ScreenHeading
 
 enum class EventStatusFilter { ALL, PUBLISHED, DRAFT }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MyEventsScreen(
     viewModel: MyEventsViewModel,
@@ -67,6 +70,7 @@ fun MyEventsScreen(
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val isRefreshing by viewModel.isRefreshing.collectAsState()
     var selectedFilter by remember { mutableStateOf(EventStatusFilter.ALL) }
 
     Scaffold(
@@ -74,35 +78,21 @@ fun MyEventsScreen(
         contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
         modifier = modifier
     ) { paddingValues ->
-        when (val state = uiState) {
-            is MyEventsUiState.Loading -> LoadingIndicator(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-            )
-            is MyEventsUiState.Error -> ErrorState(
-                message = state.message,
-                onRetry = { viewModel.loadEvents() },
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-            )
-            is MyEventsUiState.Success -> {
-                val filteredEvents = state.events.filter { event ->
-                    when (selectedFilter) {
-                        EventStatusFilter.ALL -> true
-                        EventStatusFilter.PUBLISHED -> event.isPublished
-                        EventStatusFilter.DRAFT -> !event.isPublished
-                    }
-                }
-
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(paddingValues)
-                        .padding(horizontal = 16.dp, vertical = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
+        PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = {
+                viewModel.loadEvents(isRefresh = true)
+            },
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                item {
                     // Title + Create Button Row
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -111,7 +101,10 @@ fun MyEventsScreen(
                     ) {
                         ScreenHeading(
                             title = "My Events",
-                            subtitle = "Manage events for ${state.communityName}",
+                            subtitle = when (uiState) {
+                                is MyEventsUiState.Success -> "Manage events for ${(uiState as MyEventsUiState.Success).communityName}"
+                                else -> "Manage your events"
+                            },
                             modifier = Modifier.weight(1f)
                         )
 
@@ -129,69 +122,100 @@ fun MyEventsScreen(
                             Text("+ Create", fontWeight = FontWeight.Bold, fontSize = 12.sp)
                         }
                     }
+                }
 
-                    // Filters Row
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        EventStatusFilter.entries.forEach { filter ->
-                            val isSelected = selectedFilter == filter
-                            val label = when (filter) {
-                                EventStatusFilter.ALL -> "All (${state.events.size})"
-                                EventStatusFilter.PUBLISHED -> "Published (${state.events.count { it.isPublished }})"
-                                EventStatusFilter.DRAFT -> "Drafts (${state.events.count { !it.isPublished }})"
-                            }
+                when (val state = uiState) {
+                    is MyEventsUiState.Loading -> {
+                        item {
                             Box(
                                 modifier = Modifier
-                                    .then(if (isSelected) Modifier.shadow(2.dp, RoundedCornerShape(50)) else Modifier)
-                                    .background(if (isSelected) Primary else SurfaceCard, RoundedCornerShape(50))
-                                    .border(2.dp, Outline, RoundedCornerShape(50))
-                                    .clickable { selectedFilter = filter }
-                                    .padding(horizontal = 14.dp, vertical = 6.dp)
+                                    .fillMaxWidth()
+                                    .height(300.dp),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Text(
-                                    text = label,
-                                    color = if (isSelected) OnPrimary else OnSurfaceCard,
-                                    fontWeight = FontWeight.SemiBold,
-                                    fontSize = 12.sp
-                                )
+                                LoadingIndicator()
                             }
                         }
                     }
-
-                    Box(
-                        modifier = Modifier.weight(1f),
-                        contentAlignment = Alignment.TopCenter
-                    ) {
-                        if (filteredEvents.isEmpty()) {
-                            EmptyState(
-                                message = when (selectedFilter) {
-                                    EventStatusFilter.ALL -> "No events created yet. Tap '+ Create' to add your first event."
-                                    EventStatusFilter.PUBLISHED -> "No published events found."
-                                    EventStatusFilter.DRAFT -> "No draft events found."
-                                },
-                                modifier = Modifier.fillMaxSize()
+                    is MyEventsUiState.Error -> {
+                        item {
+                            ErrorState(
+                                message = state.message,
+                                onRetry = { viewModel.loadEvents() },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(300.dp)
                             )
-                        } else {
-                            LazyColumn(
-                                modifier = Modifier.fillMaxSize(),
-                                verticalArrangement = Arrangement.spacedBy(16.dp)
+                        }
+                    }
+                    is MyEventsUiState.Success -> {
+                        val filteredEvents = state.events.filter { event ->
+                            when (selectedFilter) {
+                                EventStatusFilter.ALL -> true
+                                EventStatusFilter.PUBLISHED -> event.isPublished
+                                EventStatusFilter.DRAFT -> !event.isPublished
+                            }
+                        }
+
+                        item {
+                            // Filters Row
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                items(filteredEvents, key = { it.id }) { event ->
-                                    AdminEventCardItem(
-                                        event = event,
-                                        onEventClick = { onEventClick(event.id) },
-                                        onTogglePublish = {
-                                            viewModel.togglePublishStatus(event.id, event.isPublished)
-                                        },
-                                        onDelete = {
-                                            viewModel.deleteEvent(event.id)
-                                        }
-                                    )
+                                EventStatusFilter.entries.forEach { filter ->
+                                    val isSelected = selectedFilter == filter
+                                    val label = when (filter) {
+                                        EventStatusFilter.ALL -> "All (${state.events.size})"
+                                        EventStatusFilter.PUBLISHED -> "Published (${state.events.count { it.isPublished }})"
+                                        EventStatusFilter.DRAFT -> "Drafts (${state.events.count { !it.isPublished }})"
+                                    }
+                                    Box(
+                                        modifier = Modifier
+                                            .then(if (isSelected) Modifier.shadow(2.dp, RoundedCornerShape(50)) else Modifier)
+                                            .background(if (isSelected) Primary else SurfaceCard, RoundedCornerShape(50))
+                                            .border(2.dp, Outline, RoundedCornerShape(50))
+                                            .clickable { selectedFilter = filter }
+                                            .padding(horizontal = 14.dp, vertical = 6.dp)
+                                    ) {
+                                        Text(
+                                            text = label,
+                                            color = if (isSelected) OnPrimary else OnSurfaceCard,
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 12.sp
+                                        )
+                                    }
                                 }
+                            }
+                        }
+
+                        if (filteredEvents.isEmpty()) {
+                            item {
+                                EmptyState(
+                                    message = when (selectedFilter) {
+                                        EventStatusFilter.ALL -> "No events created yet. Tap '+ Create' to add your first event."
+                                        EventStatusFilter.PUBLISHED -> "No published events found."
+                                        EventStatusFilter.DRAFT -> "No draft events found."
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(300.dp)
+                                )
+                            }
+                        } else {
+                            items(filteredEvents, key = { it.id }) { event ->
+                                AdminEventCardItem(
+                                    event = event,
+                                    onEventClick = { onEventClick(event.id) },
+                                    onTogglePublish = {
+                                        viewModel.togglePublishStatus(event.id, event.isPublished)
+                                    },
+                                    onDelete = {
+                                        viewModel.deleteEvent(event.id)
+                                    }
+                                )
                             }
                         }
                     }

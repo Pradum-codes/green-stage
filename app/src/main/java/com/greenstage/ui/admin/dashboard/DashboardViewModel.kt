@@ -20,35 +20,46 @@ class DashboardViewModel(
     private val _uiState = MutableStateFlow<DashboardUiState>(DashboardUiState.Loading)
     val uiState: StateFlow<DashboardUiState> = _uiState.asStateFlow()
 
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+
     init {
         loadDashboard()
     }
 
-    fun loadDashboard() {
-        _uiState.value = DashboardUiState.Loading
+    fun loadDashboard(isRefresh: Boolean = false) {
+        if (isRefresh) {
+            _isRefreshing.value = true
+        } else {
+            _uiState.value = DashboardUiState.Loading
+        }
         viewModelScope.launch {
-            val communityResult = communityRepository.getOwnedCommunity()
-            if (communityResult.isFailure) {
-                _uiState.value = DashboardUiState.Error(
-                    communityResult.exceptionOrNull()?.message ?: "Failed to load community."
-                )
-                return@launch
-            }
+            try {
+                val communityResult = communityRepository.getOwnedCommunity()
+                if (communityResult.isFailure) {
+                    _uiState.value = DashboardUiState.Error(
+                        communityResult.exceptionOrNull()?.message ?: "Failed to load community."
+                    )
+                    return@launch
+                }
 
-            val community = communityResult.getOrThrow()
-            val eventsResult = eventRepository.getOwnedCommunityEvents()
-            if (eventsResult.isFailure) {
-                _uiState.value = DashboardUiState.Error(
-                    eventsResult.exceptionOrNull()?.message ?: "Failed to load community events."
-                )
-                return@launch
-            }
+                val community = communityResult.getOrThrow()
+                val eventsResult = eventRepository.getOwnedCommunityEvents()
+                if (eventsResult.isFailure) {
+                    _uiState.value = DashboardUiState.Error(
+                        eventsResult.exceptionOrNull()?.message ?: "Failed to load community events."
+                    )
+                    return@launch
+                }
 
-            val events = eventsResult.getOrThrow()
-            _uiState.value = DashboardUiState.Success(
-                community = community,
-                events = events
-            )
+                val events = eventsResult.getOrThrow()
+                _uiState.value = DashboardUiState.Success(
+                    community = community,
+                    events = events
+                )
+            } finally {
+                _isRefreshing.value = false
+            }
         }
     }
 

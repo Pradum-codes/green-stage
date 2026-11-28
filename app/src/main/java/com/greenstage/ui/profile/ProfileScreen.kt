@@ -30,7 +30,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.greenstage.app.BuildConfig
 import com.greenstage.app.R
 import com.greenstage.app.ui.theme.OnSoftCoral
 import com.greenstage.app.ui.theme.OnSurfaceCard
@@ -172,6 +174,14 @@ fun ProfileScreen(
                             Text("Sign Out", fontWeight = FontWeight.Bold)
                         }
                     }
+
+                    Text(
+                        text = "Version ${BuildConfig.VERSION_NAME}",
+                        modifier = Modifier.fillMaxWidth(),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = OnSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
                 }
             }
         }

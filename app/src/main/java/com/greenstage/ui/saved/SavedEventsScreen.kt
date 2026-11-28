@@ -27,6 +27,9 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
@@ -52,6 +55,7 @@ import com.greenstage.ui.components.LoadingIndicator
 import com.greenstage.ui.components.OffsetShadowCard
 import com.greenstage.ui.home.ScreenHeading
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SavedEventsScreen(
     viewModel: SavedEventsViewModel,
@@ -59,6 +63,7 @@ fun SavedEventsScreen(
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val isRefreshing by viewModel.isRefreshing.collectAsState()
     var selectedTab by remember { mutableIntStateOf(0) }
 
     Scaffold(
@@ -66,77 +71,103 @@ fun SavedEventsScreen(
         contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
         modifier = modifier
     ) { paddingValues ->
-        Column(
+        PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = {
+                viewModel.loadSavedEvents(isRefresh = true)
+            },
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            ScreenHeading(
-                title = "Saved Events",
-                subtitle = "Manage your bookmarked and registered events."
-            )
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(2.dp, Outline, RoundedCornerShape(8.dp))
-                    .padding(4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                listOf("Bookmarked", "Registered").forEachIndexed { index, label ->
-                    Box(
+                item {
+                    ScreenHeading(
+                        title = "Saved Events",
+                        subtitle = "Manage your bookmarked and registered events."
+                    )
+                }
+
+                item {
+                    Row(
                         modifier = Modifier
-                            .weight(1f)
-                            .height(40.dp)
-                            .background(
-                                if (selectedTab == index) Primary else SurfaceCard,
-                                RoundedCornerShape(6.dp)
-                            )
-                            .border(
-                                width = if (selectedTab == index) 2.dp else 0.dp,
-                                color = if (selectedTab == index) Outline else androidx.compose.ui.graphics.Color.Transparent,
-                                shape = RoundedCornerShape(6.dp)
-                            )
-                            .clickable { selectedTab = index },
-                        contentAlignment = Alignment.Center
+                            .fillMaxWidth()
+                            .border(2.dp, Outline, RoundedCornerShape(8.dp))
+                            .padding(4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text(
-                            label,
-                            color = if (selectedTab == index) OnPrimary else OnSurfaceCard,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
-                        )
+                        listOf("Bookmarked", "Registered").forEachIndexed { index, label ->
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(40.dp)
+                                    .background(
+                                        if (selectedTab == index) Primary else SurfaceCard,
+                                        RoundedCornerShape(6.dp)
+                                    )
+                                    .border(
+                                        width = if (selectedTab == index) 2.dp else 0.dp,
+                                        color = if (selectedTab == index) Outline else androidx.compose.ui.graphics.Color.Transparent,
+                                        shape = RoundedCornerShape(6.dp)
+                                    )
+                                    .clickable { selectedTab = index },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    label,
+                                    color = if (selectedTab == index) OnPrimary else OnSurfaceCard,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp
+                                )
+                            }
+                        }
                     }
                 }
-            }
 
-            when (val state = uiState) {
-                is SavedEventsUiState.Loading -> LoadingIndicator(
-                    modifier = Modifier.fillMaxSize()
-                )
-                is SavedEventsUiState.Error -> ErrorState(
-                    message = state.message,
-                    onRetry = { viewModel.loadSavedEvents() },
-                    modifier = Modifier.fillMaxSize()
-                )
-                is SavedEventsUiState.Success -> {
-                    val events = if (selectedTab == 0) state.bookmarkedEvents else state.registeredEvents
-                    if (events.isEmpty()) {
-                        EmptyState(
-                            message = if (selectedTab == 0) {
-                                "No bookmarked events. Bookmark events from Home or Explore to save them here."
-                            } else {
-                                "No registered events. Register for an event from its details page to see it here."
-                            },
-                            modifier = Modifier.fillMaxSize()
-                        )
-                    } else {
-                        LazyColumn(
-                            modifier = Modifier.fillMaxSize(),
-                            verticalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
+                when (val state = uiState) {
+                    is SavedEventsUiState.Loading -> {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(300.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                LoadingIndicator()
+                            }
+                        }
+                    }
+                    is SavedEventsUiState.Error -> {
+                        item {
+                            ErrorState(
+                                message = state.message,
+                                onRetry = { viewModel.loadSavedEvents() },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(300.dp)
+                            )
+                        }
+                    }
+                    is SavedEventsUiState.Success -> {
+                        val events = if (selectedTab == 0) state.bookmarkedEvents else state.registeredEvents
+                        if (events.isEmpty()) {
+                            item {
+                                EmptyState(
+                                    message = if (selectedTab == 0) {
+                                        "No bookmarked events. Bookmark events from Home or Explore to save them here."
+                                    } else {
+                                        "No registered events. Register for an event from its details page to see it here."
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(300.dp)
+                                )
+                            }
+                        } else {
                             items(events, key = { it.id }) { event ->
                                 SavedEventCard(
                                     event = event,

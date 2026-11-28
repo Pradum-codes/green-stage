@@ -20,40 +20,51 @@ class SavedEventsViewModel(
     private val _uiState = MutableStateFlow<SavedEventsUiState>(SavedEventsUiState.Loading)
     val uiState: StateFlow<SavedEventsUiState> = _uiState.asStateFlow()
 
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+
     init {
         loadSavedEvents()
     }
 
-    fun loadSavedEvents() {
-        _uiState.value = SavedEventsUiState.Loading
+    fun loadSavedEvents(isRefresh: Boolean = false) {
+        if (isRefresh) {
+            _isRefreshing.value = true
+        } else {
+            _uiState.value = SavedEventsUiState.Loading
+        }
         viewModelScope.launch {
-            val bookmarksResult = bookmarkRepository.getCurrentUserBookmarks()
-            val registrationsResult = registrationRepository.getCurrentUserRegistrations()
-            val publishedEventsResult = eventRepository.getPublishedEvents()
+            try {
+                val bookmarksResult = bookmarkRepository.getCurrentUserBookmarks()
+                val registrationsResult = registrationRepository.getCurrentUserRegistrations()
+                val publishedEventsResult = eventRepository.getPublishedEvents()
 
-            if (bookmarksResult.isFailure || registrationsResult.isFailure || publishedEventsResult.isFailure) {
-                val errorMsg = bookmarksResult.exceptionOrNull()?.message
-                    ?: registrationsResult.exceptionOrNull()?.message
-                    ?: publishedEventsResult.exceptionOrNull()?.message
-                    ?: "Failed to load saved events."
-                _uiState.value = SavedEventsUiState.Error(errorMsg)
-                return@launch
+                if (bookmarksResult.isFailure || registrationsResult.isFailure || publishedEventsResult.isFailure) {
+                    val errorMsg = bookmarksResult.exceptionOrNull()?.message
+                        ?: registrationsResult.exceptionOrNull()?.message
+                        ?: publishedEventsResult.exceptionOrNull()?.message
+                        ?: "Failed to load saved events."
+                    _uiState.value = SavedEventsUiState.Error(errorMsg)
+                    return@launch
+                }
+
+                val bookmarks = bookmarksResult.getOrThrow()
+                val registrations = registrationsResult.getOrThrow()
+                val publishedEvents = publishedEventsResult.getOrThrow()
+
+                val bookmarkedEventIds = bookmarks.map { it.eventId }.toSet()
+                val registeredEventIds = registrations.map { it.eventId }.toSet()
+
+                val bookmarkedEvents = publishedEvents.filter { bookmarkedEventIds.contains(it.id) }
+                val registeredEvents = publishedEvents.filter { registeredEventIds.contains(it.id) }
+
+                _uiState.value = SavedEventsUiState.Success(
+                    bookmarkedEvents = bookmarkedEvents,
+                    registeredEvents = registeredEvents
+                )
+            } finally {
+                _isRefreshing.value = false
             }
-
-            val bookmarks = bookmarksResult.getOrThrow()
-            val registrations = registrationsResult.getOrThrow()
-            val publishedEvents = publishedEventsResult.getOrThrow()
-
-            val bookmarkedEventIds = bookmarks.map { it.eventId }.toSet()
-            val registeredEventIds = registrations.map { it.eventId }.toSet()
-
-            val bookmarkedEvents = publishedEvents.filter { bookmarkedEventIds.contains(it.id) }
-            val registeredEvents = publishedEvents.filter { registeredEventIds.contains(it.id) }
-
-            _uiState.value = SavedEventsUiState.Success(
-                bookmarkedEvents = bookmarkedEvents,
-                registeredEvents = registeredEvents
-            )
         }
     }
 

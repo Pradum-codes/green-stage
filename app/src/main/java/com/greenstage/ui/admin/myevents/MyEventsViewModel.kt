@@ -18,35 +18,46 @@ class MyEventsViewModel(
     private val _uiState = MutableStateFlow<MyEventsUiState>(MyEventsUiState.Loading)
     val uiState: StateFlow<MyEventsUiState> = _uiState.asStateFlow()
 
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+
     init {
         loadEvents()
     }
 
-    fun loadEvents() {
-        _uiState.value = MyEventsUiState.Loading
+    fun loadEvents(isRefresh: Boolean = false) {
+        if (isRefresh) {
+            _isRefreshing.value = true
+        } else {
+            _uiState.value = MyEventsUiState.Loading
+        }
         viewModelScope.launch {
-            val communityResult = communityRepository.getOwnedCommunity()
-            if (communityResult.isFailure) {
-                _uiState.value = MyEventsUiState.Error(
-                    communityResult.exceptionOrNull()?.message ?: "Failed to load community."
-                )
-                return@launch
-            }
+            try {
+                val communityResult = communityRepository.getOwnedCommunity()
+                if (communityResult.isFailure) {
+                    _uiState.value = MyEventsUiState.Error(
+                        communityResult.exceptionOrNull()?.message ?: "Failed to load community."
+                    )
+                    return@launch
+                }
 
-            val community = communityResult.getOrThrow()
-            val eventsResult = eventRepository.getOwnedCommunityEvents()
-            if (eventsResult.isFailure) {
-                _uiState.value = MyEventsUiState.Error(
-                    eventsResult.exceptionOrNull()?.message ?: "Failed to load events."
-                )
-                return@launch
-            }
+                val community = communityResult.getOrThrow()
+                val eventsResult = eventRepository.getOwnedCommunityEvents()
+                if (eventsResult.isFailure) {
+                    _uiState.value = MyEventsUiState.Error(
+                        eventsResult.exceptionOrNull()?.message ?: "Failed to load events."
+                    )
+                    return@launch
+                }
 
-            val events = eventsResult.getOrThrow()
-            _uiState.value = MyEventsUiState.Success(
-                events = events,
-                communityName = community.name
-            )
+                val events = eventsResult.getOrThrow()
+                _uiState.value = MyEventsUiState.Success(
+                    events = events,
+                    communityName = community.name
+                )
+            } finally {
+                _isRefreshing.value = false
+            }
         }
     }
 
