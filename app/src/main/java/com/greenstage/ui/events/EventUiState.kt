@@ -1,13 +1,7 @@
 package com.greenstage.ui.events
 
 import com.greenstage.data.model.Event
-
-data class ParticipantInfo(
-    val userId: String,
-    val name: String,
-    val email: String,
-    val registeredAt: Long
-)
+import com.greenstage.data.model.ParticipantInfo
 
 sealed interface EventUiState {
     data object Loading : EventUiState

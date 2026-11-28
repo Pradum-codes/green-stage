@@ -25,6 +25,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import com.greenstage.ui.components.SearchBar
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
@@ -32,6 +36,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.greenstage.app.R
 import com.greenstage.app.ui.theme.OnPrimary
@@ -46,6 +51,7 @@ import com.greenstage.app.ui.theme.Secondary
 import com.greenstage.app.ui.theme.SoftYellow
 import com.greenstage.app.ui.theme.Surface
 import com.greenstage.app.ui.theme.SurfaceCard
+import com.greenstage.data.model.ParticipantInfo
 import com.greenstage.ui.components.CategoryChip
 import com.greenstage.ui.components.ErrorState
 import com.greenstage.ui.components.LoadingIndicator
@@ -245,6 +251,18 @@ fun EventDetailsScreen(
 
                     // Admin View: Participants / Attendees Section
                     if (isAdmin) {
+                        var searchQuery by remember { mutableStateOf("") }
+                        val filteredParticipants = remember(state.participants, searchQuery) {
+                            if (searchQuery.isBlank()) {
+                                state.participants
+                            } else {
+                                state.participants.filter {
+                                    it.name.contains(searchQuery, ignoreCase = true) ||
+                                    it.email.contains(searchQuery, ignoreCase = true)
+                                }
+                            }
+                        }
+
                         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -288,8 +306,30 @@ fun EventDetailsScreen(
                                     )
                                 }
                             } else {
-                                state.participants.forEach { participant ->
-                                    ParticipantItemCard(participant = participant)
+                                SearchBar(
+                                    query = searchQuery,
+                                    onQueryChange = { searchQuery = it },
+                                    placeholder = "Search by name or email...",
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+
+                                if (filteredParticipants.isEmpty()) {
+                                    OffsetShadowCard(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .border(2.dp, Outline, shape),
+                                        shape = shape,
+                                        colors = CardDefaults.cardColors(containerColor = SurfaceCard)
+                                    ) {
+                                        Text(
+                                            text = "No participants found matching \"$searchQuery\".",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = OnSurfaceVariant,
+                                            modifier = Modifier.padding(16.dp)
+                                        )
+                                    }
+                                } else {
+                                    ParticipantsTable(participants = filteredParticipants)
                                 }
                             }
                         }
@@ -309,12 +349,13 @@ fun EventDetailsScreen(
 }
 
 @Composable
-private fun ParticipantItemCard(
-    participant: ParticipantInfo,
+private fun ParticipantsTable(
+    participants: List<ParticipantInfo>,
     modifier: Modifier = Modifier
 ) {
     val shape = RoundedCornerShape(8.dp)
     val dateFormat = SimpleDateFormat("MMM d, yyyy • h:mm a", LocalConfiguration.current.locales[0])
+
     OffsetShadowCard(
         modifier = modifier
             .fillMaxWidth()
@@ -322,43 +363,84 @@ private fun ParticipantItemCard(
         shape = shape,
         colors = CardDefaults.cardColors(containerColor = SurfaceCard)
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(14.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            // Table Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Text(
-                    text = participant.name,
-                    style = MaterialTheme.typography.titleMedium,
+                    text = "Attendee",
+                    style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
-                    color = OnSurfaceCard
-                )
-                Text(
-                    text = participant.email,
-                    style = MaterialTheme.typography.bodyMedium,
                     color = OnSurfaceVariant
                 )
                 Text(
-                    text = "Registered: ${dateFormat.format(Date(participant.registeredAt))}",
-                    style = MaterialTheme.typography.labelSmall,
+                    text = "Registered",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
                     color = OnSurfaceVariant
                 )
             }
-            Surface(
-                color = SoftYellow,
-                shape = RoundedCornerShape(50),
-                modifier = Modifier.border(2.dp, Outline, RoundedCornerShape(50))
-            ) {
-                Text(
-                    text = "ATTENDEE",
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = OnSurfaceCard,
-                    fontWeight = FontWeight.Bold
-                )
+            HorizontalDivider(thickness = 2.dp, color = OutlineVariant)
+
+            // Table Rows
+            participants.forEachIndexed { index, participant ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        Text(
+                            text = participant.name,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = OnSurfaceCard
+                        )
+                        Text(
+                            text = participant.email,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = OnSurfaceVariant
+                        )
+                    }
+                    Column(
+                        horizontalAlignment = Alignment.End,
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        Text(
+                            text = dateFormat.format(Date(participant.registeredAt)),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = OnSurfaceVariant
+                        )
+                        Surface(
+                            color = SoftYellow,
+                            shape = RoundedCornerShape(50),
+                            modifier = Modifier.border(1.dp, Outline, RoundedCornerShape(50))
+                        ) {
+                            Text(
+                                text = "ATTENDEE",
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontSize = 10.sp,
+                                color = OnSurfaceCard,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+                if (index < participants.size - 1) {
+                    HorizontalDivider(thickness = 1.dp, color = OutlineVariant)
+                }
             }
         }
     }

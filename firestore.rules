@@ -124,23 +124,40 @@ service cloud.firestore {
       // ---------------------------------------------------------------------
 
       match /registrations/{eventId} {
-        // Students can access their own registrations. Community admins may
-        // read registrations only when the referenced event belongs to them.
-        allow get, list: if hasStudentProfile(uid)
-          || (
-            signedIn()
-            && resource.data.keys().hasAll(['eventId'])
-            && resource.data.eventId == eventId
-            && isAdminForEvent(resource.data.eventId)
-          );
+
+        allow get, list: if hasStudentProfile(uid);
 
         allow create: if hasStudentProfile(uid)
-          && request.resource.data.keys().hasAll(['eventId', 'registeredAt'])
-          && request.resource.data.keys().hasOnly(['eventId', 'registeredAt'])
+          && request.resource.data.keys().hasAll([
+            'eventId',
+            'registeredAt',
+            'communityId',
+            'studentName',
+            'studentEmail'
+          ])
+          && request.resource.data.keys().hasOnly([
+            'eventId',
+            'registeredAt',
+            'communityId',
+            'studentName',
+            'studentEmail'
+          ])
           && request.resource.data.eventId == eventId
           && request.resource.data.registeredAt is timestamp
+
+          // Validate student information
+          && request.resource.data.studentName
+              == get(userPath(uid)).data.name
+          && request.resource.data.studentEmail
+              == get(userPath(uid)).data.email
+
+          // Validate the event
           && exists(eventPath(eventId))
-          && get(eventPath(eventId)).data.isPublished == true;
+          && get(eventPath(eventId)).data.isPublished == true
+
+          // Validate community ownership
+          && request.resource.data.communityId
+              == get(eventPath(eventId)).data.communityId;
 
         allow update: if false;
 
@@ -188,9 +205,7 @@ service cloud.firestore {
         && request.resource.data.createdAt is timestamp
         && request.resource.data.updatedAt is timestamp;
 
-      allow get: if isSelf(communityId)
-        && hasAdminProfile(communityId)
-        && resource.data.createdBy == communityId;
+      allow get: if signedIn();
       allow list: if false;
 
       allow update: if isSelf(communityId)
@@ -254,6 +269,11 @@ service cloud.firestore {
         && request.resource.data.isPublished is bool;
 
       allow update: if ownsEvent(resource.data)
+        && request.resource.data.keys().hasAll([
+          'title', 'description', 'category', 'venue', 'startAt', 'endAt',
+          'imageUrl', 'communityId', 'createdBy', 'createdAt', 'updatedAt',
+          'isPublished'
+        ])
         && request.resource.data.communityId == resource.data.communityId
         && request.resource.data.createdBy == resource.data.createdBy
         && request.resource.data.createdAt == resource.data.createdAt
@@ -287,8 +307,10 @@ service cloud.firestore {
     // It grants admins read access only to documents whose event belongs to
     // their own community. It does not grant admin create/update/delete access.
     match /{documentPath=**}/registrations/{registrationId} {
+
       allow get, list: if signedIn()
-        && resource.data.keys().hasAll(['eventId'])
+        && ownsCommunity(request.auth.uid)
+        && resource.data.communityId == request.auth.uid
         && isAdminForEvent(resource.data.eventId);
     }
   }
